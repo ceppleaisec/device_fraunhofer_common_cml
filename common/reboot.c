@@ -50,6 +50,13 @@ reboot_reboot(int cmd)
 		res = reboot(RB_POWER_OFF);
 #endif
 		break;
+	case HALT:
+#ifdef ANDROID
+	// Android does not support system halt
+	res = android_reboot(ANDROID_RB_RESTART, 0, 0);
+	#else
+		res = reboot(RB_HALT_SYSTEM);
+#endif
 	}
 	return res;
 }
