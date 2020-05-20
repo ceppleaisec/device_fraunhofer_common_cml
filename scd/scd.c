@@ -43,6 +43,7 @@
 #include "common/uuid.h"
 #include "common/protobuf.h"
 #include "common/reboot.h"
+#include "common/list.h"
 #include "ssl_util.h"
 
 #include <sys/stat.h>
@@ -66,12 +67,7 @@
 #define TOKEN_DEFAULT_NAME "testuser"
 #define TOKEN_DEFAULT_EXT ".p12"
 
-/**
- * only a single instance of each token type is supported for now
- * TODO: implement token management to support several tokens for every type
- */ 
-static scd_token_t *scd_token_usb = NULL;
-static scd_token_t *scd_token_st = NULL;
+static list_t *scd_token_list = NULL;
 
 static scd_control_t *scd_control_cmld = NULL;
 static logf_handler_t *scd_logfile_handler = NULL;
@@ -350,116 +346,6 @@ main(int argc, char **argv)
 	return 0;
 }
 
- 
-/*****************************************************************************/
-/******************* internal helper functions *******************************/
-/*****************************************************************************/
-
-int
-int_lock_st(scd_token_t *token) {
-    return softtoken_lock(token->int_token.softtoken);
-}
-
-int
-int_unlock_st(scd_token_t *token, char *passwd,
-				UNUSED unsigned char *pairing_secret,
-				UNUSED size_t pairing_sec_len) {
-    return softtoken_unlock(token->int_token.softtoken, passwd);
-}
-
-bool
-int_is_locked_st(scd_token_t *token) {
-    return softtoken_is_locked(token->int_token.softtoken);
-}
-
-bool
-int_is_locked_till_reboot_st(scd_token_t *token) {
-    return softtoken_is_locked_till_reboot(token->int_token.softtoken);
-}
-
-int
-int_wrap_st(scd_token_t *token,
-			UNUSED char *label,
-			unsigned char *plain_key, size_t plain_key_len,
-			unsigned char **wrapped_key, int *wrapped_key_len)
-{   
-
-    return softtoken_wrap_key(token->int_token.softtoken, plain_key, plain_key_len,
-                              wrapped_key, wrapped_key_len);
-}
-
-int
-int_unwrap_st(scd_token_t *token, 
-				UNUSED char *label,
-                unsigned char *wrapped_key, size_t wrapped_key_len,
-		        unsigned char **plain_key, int *plain_key_len)
-{  
-    return softtoken_unwrap_key(token->int_token.softtoken, wrapped_key,
-                                wrapped_key_len, plain_key, plain_key_len);
-}
-
-int
-int_change_pw_st(scd_token_t *token, const char *oldpass, const char *newpass)
-{
-	return softtoken_change_passphrase(token->int_token.softtoken, oldpass,
-										newpass);
-}
-
-/*  -----------------------------------------------------------------------  */
-int
-int_lock_usb(scd_token_t *token) {
-    return usbtoken_lock(token->int_token.usbtoken);
-}
-
-int
-int_unlock_usb(scd_token_t *token, char *passwd,
-				unsigned char *pairing_secret, size_t pairing_sec_len) {
-    TRACE("SCD: int_usb_unlock");
-    return usbtoken_unlock(token->int_token.usbtoken, passwd,
-							pairing_secret, pairing_sec_len);
-}
-
-bool
-int_is_locked_usb(scd_token_t *token) {
-    return usbtoken_is_locked(token->int_token.usbtoken);
-}
-
-bool
-int_is_locked_till_reboot_usb(scd_token_t *token) {
-    return usbtoken_is_locked_till_reboot(token->int_token.usbtoken);
-}
-
-int
-int_wrap_usb(scd_token_t *token, char *label,
-			unsigned char *plain_key, size_t plain_key_len,
-			unsigned char **wrapped_key, int *wrapped_key_len)
-{   
-    return usbtoken_wrap_key(token->int_token.usbtoken, 
-							(unsigned char *) label, strlen(label),
-                            plain_key, plain_key_len,
-                            wrapped_key, wrapped_key_len);
-}
-
-int
-int_unwrap_usb(scd_token_t *token, char *label,
-                unsigned char *wrapped_key, size_t wrapped_key_len,
-		        unsigned char **plain_key, int *plain_key_len)
-{   
-    return usbtoken_unwrap_key(token->int_token.usbtoken,
-								(unsigned char *) label, strlen(label),
-                                wrapped_key, wrapped_key_len,
-                                plain_key, plain_key_len);
-}
-
-int
-int_change_pw_usb(scd_token_t *token, const char *oldpass, const char *newpass)
-{
-	return usbtoken_change_passphrase(token->int_token.usbtoken, oldpass,
-										newpass);
-}
-
-/*  -----------------------------------------------------------------------  */
-
 const char *
 scd_get_softtoken_dir(void)
 {
@@ -508,132 +394,61 @@ scd_proto_to_tokentype(const DaemonToToken *msg) {
 	return -1; // never reached
 }
 
+static scd_token_t *
+token_list_search(scd_tokentype_t type, const char *name) {
 
-/**
- * creates a new generic token
- * calls the respective create function for the selected type of token and
- * sets the function pointer appropriately
- */
-scd_token_t *
-scd_token_create(scd_tokentype_t type) {
+	ASSERT(name);
 
-    scd_token_t *new_token;
-    
-	TRACE("SCD: scd_token_create");
-	
-	new_token = mem_new0(scd_token_t, 1);
-    if (!new_token) {
-        ERROR("Could not allocate new scd_token_t");
-        return NULL;
-    }
+	for (list_t *l = scd_token_list; l; l = l->next) {
+		scd_token_t *t = l->data;
 
-    switch (type) {
-        case (NONE): {
-            WARN("Create scd_token with internal type 'NONE' selected");
-            new_token->type       = NONE;
-            break;
-        }
-        case (DEVICE): {
-            DEBUG("Create scd_token with internal type 'DEVICE'");
-			new_token->int_token.softtoken = scd_load_softtoken(
-				scd_get_softtoken_dir(), TOKEN_DEFAULT_NAME TOKEN_DEFAULT_EXT);
-            if (!new_token->int_token.softtoken) {
-                ERROR("Creation of softtoken failed");
-                mem_free(new_token);
-                return NULL;
-            }
-            new_token->type       = DEVICE;
-            new_token->lock       = int_lock_st;
-            new_token->unlock     = int_unlock_st;
-            new_token->is_locked  = int_is_locked_st;
-            new_token->is_locked_till_reboot = int_is_locked_till_reboot_st;
-            new_token->wrap_key   = int_wrap_st;
-            new_token->unwrap_key  = int_unwrap_st;
-			new_token->change_passphrase = int_change_pw_st;
-           break;
-        }
-        case (USB): {
-            DEBUG("Create scd_token with internal type 'USB'");
-            new_token->int_token.usbtoken = usbtoken_init();
-            ASSERT(new_token->int_token.usbtoken);
-            if (NULL == new_token->int_token.usbtoken) {
-                ERROR("Creation of usbtoken failed");
-                mem_free(new_token);
-                return NULL;
-            }
-            new_token->type       = USB;
-            new_token->lock       = int_lock_usb;
-            new_token->unlock     = int_unlock_usb;
-            new_token->is_locked  = int_is_locked_usb;
-            new_token->is_locked_till_reboot = int_is_locked_till_reboot_usb;
-            new_token->wrap_key   = int_wrap_usb;
-            new_token->unwrap_key   = int_unwrap_usb;
-			new_token->change_passphrase = int_change_pw_usb;
-           break;
-        }
-        default: {
-            ERROR("Unrecognized token type");
-            mem_free(new_token);
-            return NULL;
-        }
-    }
-    return new_token;
-}
-
-
-void 
-scd_token_free(scd_token_t *token) {
-
-    /* TODO */
-    switch (token->type) {
-        case (NONE): break;
-        case (DEVICE):
-            softtoken_free(token->int_token.softtoken);
-            break;
-        case (USB):
-            usbtoken_free(token->int_token.usbtoken);
-            break;
-        default:
-            ERROR("Failed to determine token type. Cannot clean up");
-            return;
-    }
-    mem_free(token);
+		if (type == scd_token_get_type(t)) {
+			if (strncmp(name, uuid_string(scd_token_get_uuid(t)), strlen(name)) == 0) {
+				return t;
+			}
+		}
+	}
+	return NULL;
 }
 
 /**
  * Get a generic scd token.
- * TODO: manage several token per token_type
  */
 scd_token_t *
 scd_get_token (const DaemonToToken *msg)
 {
+	ASSERT(msg);
+
+	TRACE("SCD: scd_get_token. proto_tokentype: %d", msg->token_type);
+
+	scd_token_t *token;
 	scd_tokentype_t type;
 
 	type = scd_proto_to_tokentype(msg);
+	token = token_list_search(type, msg->token_uuid);
 
-	TRACE("SCD: scd_get_token. scd_tokentype: %d", type);
-	TRACE("SCD: scd_get_token. prot_tokentype: %d", msg->token_type);
-
-
-	switch (type) {
-		case (NONE): break;
-		case (DEVICE):
-			if (!scd_token_st) {
-				scd_token_st = scd_token_create(type);
-			}
-			return scd_token_st;
-		break;
-		case (USB): 
-			if (!scd_token_usb) {
-				scd_token_usb = scd_token_create(type);
-			}
-			return scd_token_usb;
-		break;
-		
-		default:
-			ERROR("Could not determine scd_tokentype_t");
+	if (!token) {
+		token = scd_token_new(type, msg->token_uuid, SCD_TOKEN_DIR);
+		if(!token) {
+			ERROR("Could not create new scd_token");
 			return NULL;
+		}
+		scd_token_list = list_append(scd_token_list, token);
 	}
 
-	return NULL;
+	return token;
+}
+
+/**
+ * free a scd token and remove it from the global list of initialized tokens.
+ */
+void
+scd_free_token(scd_token_t *token) {
+	IF_NULL_RETURN(token);
+
+	scd_token_list = list_remove(scd_token_list, token);
+
+	scd_token_free(token);
+
+	token = NULL;
 }

@@ -71,13 +71,16 @@ message DaemonToToken {
 	optional string token_pin = 2;		// for unlocking and changing of the token
 	optional string token_newpin = 3;	// for changing pin of the token
 
-	// for identifying the type of the token 
+	// the type of the token
 	optional TokenType token_type = 4 [default = DEVICE];
 
-	optional string container_uuid = 5;	// can be used as input for key wrapping
+	// the uuid of the token
+	optional string token_uuid = 5 [default = "00000000-0000-0000-0000-000000000000"];
+
+	optional string container_uuid = 6;	// can be used as input for key wrapping
 	
 	/* TODO: must be implemented! */
-	optional bytes pairing_secret = 6; // to bind the token to the device
+	optional bytes pairing_secret = 7; // to bind the token to the device
 
 	optional bytes unwrapped_key = 10;	// for wrapping a key
 	optional bytes wrapped_key = 11;	// for (un)wrapping a key
