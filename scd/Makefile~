@@ -69,7 +69,6 @@ SRC_FILES := \
 	control.c \
 	softtoken.c \
 	usbtoken.c \
-	token.c \
 	scd.c \
 	ssl_util.c
 
