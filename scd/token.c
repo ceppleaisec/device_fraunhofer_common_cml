@@ -86,8 +86,11 @@ int_unwrap_st(scd_token_t *token,
                                 wrapped_key_len, plain_key, plain_key_len);
 }
 
+/* TODO: add token provisioning for softtoken */
 int
-int_change_pw_st(scd_token_t *token, const char *oldpass, const char *newpass)
+int_change_pw_st(scd_token_t *token, const char *oldpass, const char *newpass,
+                    UNUSED unsigned char *pairing_secret, UNUSED size_t pairing_sec_len,
+                    UNUSED bool is_provisioning)
 {
 	return softtoken_change_passphrase(token->token_data->int_token.softtoken, oldpass,
 										newpass);
@@ -140,10 +143,14 @@ int_unwrap_usb(scd_token_t *token, char *label,
 }
 
 int
-int_change_pw_usb(scd_token_t *token, const char *oldpass, const char *newpass)
+int_change_pw_usb(scd_token_t *token, const char *oldpass, const char *newpass,
+                    unsigned char *pairing_secret, size_t pairing_sec_len,
+                    bool is_provisioning)
 {
-	return usbtoken_change_passphrase(token->token_data->int_token.usbtoken, oldpass,
-										newpass);
+	return usbtoken_change_passphrase(token->token_data->int_token.usbtoken, 
+                                        oldpass, newpass,
+                                        pairing_secret, pairing_sec_len,
+                                        is_provisioning);
 }
 
 /*  -----------------------------------------------------------------------  */

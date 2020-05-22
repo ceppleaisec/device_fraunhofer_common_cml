@@ -315,8 +315,35 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 		} else if (token->is_locked_till_reboot(token)) {
 			out.code = TOKEN_TO_DAEMON__CODE__LOCKED_TILL_REBOOT;
 		} else {
-			int ret = token->change_passphrase(token, msg->token_pin,
-							      msg->token_newpin);
+			int ret = token->change_passphrase(token, msg->token_pin, msg->token_newpin,
+								msg->pairing_secret.data,
+								msg->pairing_secret.len,
+								false);
+			if (ret == 0)
+				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL;
+			else
+				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_FAILED;
+		}
+
+		protobuf_send_message(fd, (ProtobufCMessage *)&out);
+	} break;
+	case DAEMON_TO_TOKEN__CODE__PROVISION_PIN: {
+		TRACE("SCD: Handle messsage PROVISION_PIN");
+		TokenToDaemon out = TOKEN_TO_DAEMON__INIT;
+		out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_FAILED;
+
+		scd_token_t *token = scd_get_token(msg);
+		if (!token) {
+			ERROR("No token loaded, change pass failed");
+		} else if (!msg->token_pin) {
+			ERROR("Token passphrase not specified");
+		} else if (token->is_locked_till_reboot(token)) {
+			out.code = TOKEN_TO_DAEMON__CODE__LOCKED_TILL_REBOOT;
+		} else {
+			int ret = token->change_passphrase(token, msg->token_pin, msg->token_newpin,
+								msg->pairing_secret.data,
+								msg->pairing_secret.len,
+								true);
 			if (ret == 0)
 				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL;
 			else
@@ -434,6 +461,9 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 	} break;
 	default:
 		WARN("DaemonToToken command %d unknown or not implemented yet", msg->code);
+		TokenToDaemon out = TOKEN_TO_DAEMON__INIT;
+		out.code = TOKEN_TO_DAEMON__CODE__CMD_UNKNOWN;
+		protobuf_send_message(fd, (ProtobufCMessage *)&out);
 		break;
 	}
 }

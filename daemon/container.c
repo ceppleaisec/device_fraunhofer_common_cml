@@ -297,6 +297,13 @@ container_new_internal(const uuid_t *uuid, const char *name, container_type_t ty
 
 	container->images_dir = mem_strdup(images_dir);
 
+	/* create image_dir already so we can store a pseudo file as a
+	 * marker that the token aossicated with the container has been initialized
+	 */
+	if (mkdir(images_dir, 0755) < 0 && errno != EEXIST) {
+		ERROR_ERRNO("Cound not mkdir container directory %s",images_dir);
+	}
+
 	container->color = color;
 
 	container->allow_autostart = allow_autostart;
