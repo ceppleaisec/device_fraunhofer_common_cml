@@ -73,7 +73,10 @@ struct scd_token {
                        unsigned char *wrapped_key, size_t wrapped_key_len,
 		               unsigned char **plain_key, int *plain_key_len);
 
-    int (*change_passphrase) (scd_token_t *token, const char *oldpass, const char *newpass);
+    int (*change_passphrase) (scd_token_t *token,
+                        const char *oldpass, const char *newpass,
+                        unsigned char *pairing_secret, size_t pairing_sec_len,
+                        bool is_provisioning);
 };
 
 /**

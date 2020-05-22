@@ -57,13 +57,11 @@
 #define TOKEN_KEY_LEN 64 // actual encryption key
 #define TOKEN_MAX_WRAPPED_KEY_LEN 4096
 
-/*
- * This is currently the Byte representation of the string "ABCD" (without trailing
- * NULL Byte) to keep compatibility with the sc-hsm key-gen example.
- * 
- * TODO: should be bound securely to platform; e.g. using TPM
- */
-const unsigned char PAIRING_SECRET[] = {0x41,0x42,0x43,0x44};
+#define MAX_PAIR_SEC_LEN	8
+#define PAIR_SEC_FILE_NAME	"device_pairing_secret"
+
+
+#define TOKEN_IS_INIT_FILE_NAME "token_is_initialized"
 
 struct smartcard {
 	int sock;
@@ -102,6 +100,89 @@ smartcard_tokentype_to_proto(smartcard_tokentype_t tokentype) {
 		default:
 			FATAL("Invalid smartcard_tokentype_t value : %d", tokentype);
 	}
+}
+
+/**
+ * Gets the device pairing secret.
+ * TODO: the secret should be protected inside a TPM
+ */
+static int
+smartcard_get_pairing_secret(smartcard_t *smartcard, unsigned char *buf, size_t buf_len)
+{
+	ASSERT(smartcard);
+	ASSERT(buf);
+
+	TRACE("smartcard_get_pairing_secret");
+
+	size_t bytes_read, bytes_written;
+	unsigned char pair_sec[MAX_PAIR_SEC_LEN];
+	char *pair_sec_file = mem_printf("%s/%s", smartcard->path, PAIR_SEC_FILE_NAME);
+
+	if (file_exists(pair_sec_file)) {
+		bytes_read = file_read(pair_sec_file, (char *)pair_sec, sizeof(pair_sec));
+
+		if (bytes_read > buf_len) {
+			ERROR("Buffer too small to hold pairing secret read from file");
+			goto error;
+		}
+
+		memcpy(buf, pair_sec, bytes_read);
+		mem_free(pair_sec_file);
+		return bytes_read;
+
+	} else {
+		DEBUG("No pairing secret has been persisted yet. Creating new one");
+		bytes_read = hardware_get_random(pair_sec, sizeof(pair_sec));
+		if (bytes_read != sizeof(pair_sec)) {
+			ERROR("Failed to get random pairing secret");
+			goto error;
+		} else {
+			if (mkdir(smartcard->path, 0755) < 0 && errno != EEXIST) {
+				ERROR_ERRNO("Could not mkdir %s", smartcard->path);
+				goto error;
+			}
+
+			bytes_written = file_write(pair_sec_file, (char *)pair_sec, bytes_read);
+
+			if (bytes_written != bytes_read) {
+				ERROR("Failed to write paring secret to file, bytes written: %zd", bytes_written);
+				goto error;
+			}
+
+			if (bytes_read > buf_len) {
+				ERROR("Buffer too small to hold pairing secret read from file");
+				goto error;
+			}
+
+			memcpy(buf, pair_sec, bytes_read);
+			mem_free(pair_sec_file);
+			return bytes_read;
+		}
+	}
+
+error:
+	mem_free(pair_sec_file);
+	return -1;
+}
+
+/**
+ * checks whether the token associated to @param container has been provisioned
+ * with a device bound authentication code yet.
+ */
+static int
+container_token_is_provisioned(container_t *container)
+{
+	ASSERT(container);
+
+	int ret = -1;
+
+	char *token_init_file = mem_printf("%s/%s", container_get_images_dir(container),
+										TOKEN_IS_INIT_FILE_NAME);
+
+	ret = file_exists(token_init_file);
+
+	mem_free(token_init_file);
+	return ret;
 }
 
 static void
@@ -363,8 +444,24 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 	startdata->container = container;
 	startdata->control = control;
 
+	int pair_sec_len;
+	int resp_fd = control_get_client_sock(startdata->control);
 	int pw_size = strlen(passwd);
 	DEBUG("SCD: Passwd form UI: %s, size: %d", passwd, pw_size);
+
+	if (!container_token_is_provisioned(container)) {
+		ERROR("The token that is associated with this container must be initialized first");
+		control_send_message(CONTROL_RESPONSE_CONTAINER_TOKEN_UNINITIALIZED, resp_fd);
+		mem_free(startdata);
+		return -1;
+	}
+	
+	unsigned char pair_sec[MAX_PAIR_SEC_LEN];
+	pair_sec_len = smartcard_get_pairing_secret(smartcard, pair_sec, sizeof(pair_sec));
+	if (pair_sec_len < 0) {
+		ERROR("Could not retrieve pairing secret");
+		return -1;
+	}
 	// register callback handler
 
 	// TODO register timer if socket does not respond
@@ -378,10 +475,9 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 	out.code = DAEMON_TO_TOKEN__CODE__UNLOCK;
 	out.token_pin = mem_strdup(passwd);
 
-	/* TODO: properly implement pairing secret */
 	out.has_pairing_secret = true;
-	out.pairing_secret.len = sizeof(PAIRING_SECRET);
-	out.pairing_secret.data = mem_memcpy(PAIRING_SECRET, sizeof(PAIRING_SECRET));
+	out.pairing_secret.len = pair_sec_len;
+	out.pairing_secret.data = mem_memcpy(pair_sec, sizeof(pair_sec));
 
 	switch (container_get_token_type(container)) {
 		case CONTAINER_TOKEN_TYPE_DEVICE: {
@@ -414,6 +510,7 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 
 	protobuf_send_message(smartcard->sock, (ProtobufCMessage *)&out);
 	mem_free(out.token_pin);
+	mem_free(out.pairing_secret.data);
 	mem_free(out.pairing_secret.data);
 
 	return 0;
@@ -456,6 +553,9 @@ smartcard_cb_generic(int fd, unsigned events, event_io_t *io, void *data)
 		case TOKEN_TO_DAEMON__CODE__DEVICE_CERT_OK: {
 			control_send_message(CONTROL_RESPONSE_DEVICE_CERT_OK, resp_fd);
 		} break;
+		case TOKEN_TO_DAEMON__CODE__CMD_UNKNOWN: {
+			control_send_message(CONTROL_RESPONSE_CMD_UNSUPPORTED, resp_fd);
+		} break;
 		default:
 			ERROR("TokenToDaemon command %d unknown or not implemented yet", msg->code);
 			break;
@@ -465,6 +565,131 @@ smartcard_cb_generic(int fd, unsigned events, event_io_t *io, void *data)
 		event_io_free(io);
 	}
 }
+
+int
+smartcard_cb_change_container_pin(int fd, unsigned events, event_io_t *io, void *data)
+{
+	smartcard_startdata_t *startdata = data;
+	int resp_fd = control_get_client_sock(startdata->control);
+	int rc;
+
+	TRACE("smartcard_cb_change_container_pin");
+
+	if (events & EVENT_IO_READ) {
+		TokenToDaemon *msg =
+			(TokenToDaemon *)protobuf_recv_message(fd, &token_to_daemon__descriptor);
+		if (!msg) {
+			ERROR("Failed to receive message although EVENT_IO_READ was set. Aborting smartcard generic callback.");
+			event_remove_io(io);
+			event_io_free(io);
+			return -1;
+		}
+		switch (msg->code) {
+		case TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL: {
+			char *path = mem_printf("%s/%s", container_get_images_dir(startdata->container),
+								TOKEN_IS_INIT_FILE_NAME);
+			rc = file_touch(path);
+			if (rc != 0) {
+				ERROR("Could not write file %s to flag that container %s's token has been initialized\n \
+						This may leave the system in an inconsistent state!", path);
+				control_send_message(CONTROL_RESPONSE_DEVICE_CHANGE_PIN_FAILED, resp_fd);
+			} else {
+				control_send_message(CONTROL_RESPONSE_DEVICE_CHANGE_PIN_SUCCESSFUL,
+					     resp_fd);
+			}
+			mem_free(path);
+		} break;
+		case TOKEN_TO_DAEMON__CODE__CHANGE_PIN_FAILED: {
+			control_send_message(CONTROL_RESPONSE_DEVICE_CHANGE_PIN_FAILED, resp_fd);
+		} break;
+		default:
+			ERROR("TokenToDaemon command %d not expected as answer to change_pin", msg->code);
+			break;
+		}
+		protobuf_free_message((ProtobufCMessage *)msg);
+		event_remove_io(io);
+		event_io_free(io);
+		mem_free(startdata);
+	}
+}
+
+int
+smartcard_change_container_pin(smartcard_t *smartcard, control_t *control,
+								container_t *container,
+								const char *passwd, const char *newpasswd)
+{
+	ASSERT(smartcard);
+	ASSERT(container);
+	ASSERT(control);
+	ASSERT(passwd);
+	ASSERT(newpasswd);
+
+	int ret = -1;
+	int pw_size = strlen(passwd);
+	int newpw_size = strlen(newpasswd);
+	unsigned char pair_sec[MAX_PAIR_SEC_LEN];
+	int resp_fd = control_get_client_sock(control);
+	bool is_provisioning;
+
+	smartcard_startdata_t *startdata = mem_alloc(sizeof(smartcard_startdata_t));
+	startdata->smartcard = smartcard;
+	startdata->container = container;
+	startdata->control = control;
+
+	DEBUG("SCD: Passwd form UI: %s, size: %d", passwd, pw_size);
+	DEBUG("SCD: New Passwd form UI: %s, size: %d", newpasswd, newpw_size);
+
+	ret = smartcard_get_pairing_secret(smartcard, pair_sec, sizeof(pair_sec));
+	if (ret < 0) {
+		ERROR("Could not retrieve pairing secret, ret code : %d", ret);
+		control_send_message(CONTROL_RESPONSE_CONTAINER_CHANGE_PIN_FAILED, resp_fd);
+		return -1;
+	}
+
+	is_provisioning = !container_token_is_provisioned(container);
+
+	event_io_t *event =
+		event_io_new(smartcard->sock, EVENT_IO_READ, smartcard_cb_change_container_pin, startdata);
+	event_add_io(event);
+	DEBUG("SCD: Registered generic container callback for scd");
+
+	DaemonToToken out = DAEMON_TO_TOKEN__INIT;
+	out.code = is_provisioning ? DAEMON_TO_TOKEN__CODE__PROVISION_PIN : DAEMON_TO_TOKEN__CODE__CHANGE_PIN;
+
+	out.has_token_type = true;
+	switch (container_get_token_type(container)) {
+		case CONTAINER_TOKEN_TYPE_DEVICE: {
+			TRACE("Using token type DEVICE");
+			out.token_type = smartcard_tokentype_to_proto(DEVICE);
+		} break;
+
+		case CONTAINER_TOKEN_TYPE_USB: {
+			TRACE("Using token type USB");
+			out.token_type = smartcard_tokentype_to_proto(USB);
+		} break;
+
+		default: {
+			ERROR("Token type not supported!");
+			control_send_message(CONTROL_RESPONSE_CONTAINER_CHANGE_PIN_FAILED, resp_fd);
+			return -1;
+		}
+	}
+
+	out.token_pin = mem_strdup(passwd);
+	out.token_newpin = mem_strdup(newpasswd);
+
+	out.has_pairing_secret = true;
+	out.pairing_secret.len = sizeof(pair_sec);
+	out.pairing_secret.data = mem_memcpy(pair_sec, sizeof(pair_sec));
+
+	ret = protobuf_send_message(smartcard->sock, (ProtobufCMessage *)&out);
+	mem_free(out.token_pin);
+	mem_free(out.token_newpin);
+	mem_free(out.pairing_secret.data);
+
+	return (ret > 0) ? 0 : -1;
+}
+
 
 int
 smartcard_change_pin(smartcard_t *smartcard, control_t *control, const char *passwd,

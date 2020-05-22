@@ -92,7 +92,9 @@ usbtoken_unwrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
  * of the softtoken token.
  */
 int
-usbtoken_change_passphrase(usbtoken_t *token, const char *oldpass, const char *newpass);
+usbtoken_change_passphrase(usbtoken_t *token, const char *oldpass, const char *newpass,
+							unsigned char *pairing_secret, size_t pairing_sec_len,
+							bool is_provisioning);
 
 
 #endif
