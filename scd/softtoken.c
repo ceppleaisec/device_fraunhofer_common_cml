@@ -45,8 +45,7 @@ struct softtoken {
  * creates a new pkcs12 softtoken.
  */
 int
-softtoken_create_p12(const char* filename, const char* passwd,
-					 const char* name)
+softtoken_create_p12(const char *filename, const char *passwd, const char *name)
 {
 	ASSERT(filename);
 	ASSERT(passwd);
@@ -57,8 +56,7 @@ softtoken_create_p12(const char* filename, const char* passwd,
 		FATAL("Failed to initialize OpenSSL stack for softtoken");
 	}
 
-	if (ssl_create_pkcs12_token(filename, NULL, passwd,
-				    name) != 0) {
+	if (ssl_create_pkcs12_token(filename, NULL, passwd, name) != 0) {
 		FATAL("Unable to create initial user token");
 		return -1;
 	}

@@ -214,9 +214,8 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 		} else if (token->is_locked_till_reboot(token)) {
 			out.code = TOKEN_TO_DAEMON__CODE__LOCKED_TILL_REBOOT;
 		} else {
-			int ret = token->unlock(token, msg->token_pin,
-									msg->pairing_secret.data,
-									msg->pairing_secret.len);
+			int ret = token->unlock(token, msg->token_pin, msg->pairing_secret.data,
+						msg->pairing_secret.len);
 			if (ret == 0)
 				out.code = TOKEN_TO_DAEMON__CODE__UNLOCK_SUCCESSFUL;
 			else if (ret == -2) {
@@ -258,11 +257,9 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 			ERROR("Token is locked. Unlock first.");
 		} else if (!msg->has_unwrapped_key) {
 			ERROR("Unwrapped key not specified.");
-		} else if (token->wrap_key(token,
-						  msg->container_uuid,
-						  msg->unwrapped_key.data,
-					      msg->unwrapped_key.len, &wrapped_key,
-					      &wrapped_key_len) == 0) {
+		} else if (token->wrap_key(token, msg->container_uuid, msg->unwrapped_key.data,
+					   msg->unwrapped_key.len, &wrapped_key,
+					   &wrapped_key_len) == 0) {
 			out.has_wrapped_key = true;
 			out.wrapped_key.len = wrapped_key_len;
 			out.wrapped_key.data = wrapped_key;
@@ -288,9 +285,9 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 			ERROR("Token is locked. Unlock first.");
 		} else if (!msg->has_wrapped_key) {
 			ERROR("Wrapped key not specified.");
-		} else if (token->unwrap_key(token, msg->container_uuid,
-					msg->wrapped_key.data, msg->wrapped_key.len,
-					&unwrapped_key, &unwrapped_key_len) == 0) {
+		} else if (token->unwrap_key(token, msg->container_uuid, msg->wrapped_key.data,
+					     msg->wrapped_key.len, &unwrapped_key,
+					     &unwrapped_key_len) == 0) {
 			out.has_unwrapped_key = true;
 			out.unwrapped_key.len = unwrapped_key_len;
 			out.unwrapped_key.data = unwrapped_key;
@@ -316,9 +313,8 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 			out.code = TOKEN_TO_DAEMON__CODE__LOCKED_TILL_REBOOT;
 		} else {
 			int ret = token->change_passphrase(token, msg->token_pin, msg->token_newpin,
-								msg->pairing_secret.data,
-								msg->pairing_secret.len,
-								false);
+							   msg->pairing_secret.data,
+							   msg->pairing_secret.len, false);
 			if (ret == 0)
 				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL;
 			else
@@ -341,9 +337,8 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 			out.code = TOKEN_TO_DAEMON__CODE__LOCKED_TILL_REBOOT;
 		} else {
 			int ret = token->change_passphrase(token, msg->token_pin, msg->token_newpin,
-								msg->pairing_secret.data,
-								msg->pairing_secret.len,
-								true);
+							   msg->pairing_secret.data,
+							   msg->pairing_secret.len, true);
 			if (ret == 0)
 				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL;
 			else

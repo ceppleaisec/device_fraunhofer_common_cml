@@ -79,7 +79,7 @@ message DaemonToToken {
 	optional string token_uuid = 5 [default = "00000000-0000-0000-0000-000000000000"];
 
 	optional string container_uuid = 6;	// can be used as input for key wrapping
-	
+
 	/* TODO: must be implemented! */
 	optional bytes pairing_secret = 7; // to bind the token to the device
 

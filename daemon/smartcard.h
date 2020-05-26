@@ -64,9 +64,8 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
  *
  */
 int
-smartcard_change_container_pin(smartcard_t *smartcard, control_t *control,
-								container_t *container,
-								const char *passwd, const char *newpasswd);
+smartcard_change_container_pin(smartcard_t *smartcard, control_t *control, container_t *container,
+			       const char *passwd, const char *newpasswd);
 
 /**
  * Change the passphrase/pin of the associated device token smartcard

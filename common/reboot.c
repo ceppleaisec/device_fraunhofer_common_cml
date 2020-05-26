@@ -52,9 +52,9 @@ reboot_reboot(int cmd)
 		break;
 	case HALT:
 #ifdef ANDROID
-	// Android does not support system halt
-	res = android_reboot(ANDROID_RB_RESTART, 0, 0);
-	#else
+		// Android does not support system halt
+		res = android_reboot(ANDROID_RB_RESTART, 0, 0);
+#else
 		res = reboot(RB_HALT_SYSTEM);
 #endif
 	}

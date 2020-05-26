@@ -63,14 +63,13 @@ scd_get_token_dir(void);
  *      - in ealier versions this always returned a softtoken_t
  */
 scd_token_t *
-scd_get_token (const DaemonToToken *msg);
+scd_get_token(const DaemonToToken *msg);
 
 /**
  * Frees a generic token structure.
  */
-void 
-scd_token_free(scd_token_t *token);
-
+void
+scd_free_token(scd_token_t *token);
 
 /**
  * Returns the token to use for crypto operations.

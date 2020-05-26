@@ -29,7 +29,7 @@
 
 typedef struct usbtoken usbtoken_t;
 
-/** 
+/**
  * Initializes a usb token
  * TODO: select and init only desired usb token
  */
@@ -41,8 +41,8 @@ usbtoken_init(void);
  * stores the token private key in the structure
  */
 int
-usbtoken_unlock(usbtoken_t *token, char *passwd, 
-				unsigned char *pairing_secret, size_t pairing_sec_len);
+usbtoken_unlock(usbtoken_t *token, char *passwd, unsigned char *pairing_secret,
+		size_t pairing_sec_len);
 /**
  * locks a usbtoken by freeing the private key
  * reference in the usbtoken
@@ -75,8 +75,8 @@ usbtoken_free(usbtoken_t *token);
  */
 int
 usbtoken_wrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
-				  unsigned char *plain_key, size_t plain_key_len,
-				  unsigned char **wrapped_key, int *wrapped_key_len);
+		  unsigned char *plain_key, size_t plain_key_len, unsigned char **wrapped_key,
+		  int *wrapped_key_len);
 
 /**
  * unwraps a symmetric container key wrapped_key of length wrapped_key_len with a
@@ -84,8 +84,8 @@ usbtoken_wrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
  */
 int
 usbtoken_unwrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
-					unsigned char *wrapped_key, size_t wrapped_key_len,
-		    		unsigned char **plain_key, int *plain_key_len);
+		    unsigned char *wrapped_key, size_t wrapped_key_len, unsigned char **plain_key,
+		    int *plain_key_len);
 
 /**
  * Changes the pasphrase/pin of the underlying low level structure
@@ -93,8 +93,7 @@ usbtoken_unwrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
  */
 int
 usbtoken_change_passphrase(usbtoken_t *token, const char *oldpass, const char *newpass,
-							unsigned char *pairing_secret, size_t pairing_sec_len,
-							bool is_provisioning);
-
+			   unsigned char *pairing_secret, size_t pairing_sec_len,
+			   bool is_provisioning);
 
 #endif

@@ -85,7 +85,7 @@ mem_strndup(const char *str, size_t len)
 
 unsigned char *
 mem_memcpy(const unsigned char *mem, size_t size)
-{	
+{
 	ASSERT(mem);
 	unsigned char *p = mem_alloc0(size);
 	ASSERT(p);

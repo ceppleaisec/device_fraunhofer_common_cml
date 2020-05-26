@@ -32,7 +32,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-
 #define STOKEN_DEFAULT_PASS "trustme"
 
 /**
@@ -55,28 +54,24 @@ typedef enum scd_tokentype { NONE, DEVICE, USB } scd_tokentype_t;
  *  generic scd_token.
  */
 struct scd_token {
+	scd_token_data_t *token_data;
 
-    scd_token_data_t *token_data;
+	int (*lock)(scd_token_t *token);
+	int (*unlock)(scd_token_t *token, char *passwd, unsigned char *pairing_secret,
+		      size_t pairing_sec_len);
 
-    int (*lock) (scd_token_t *token);
-    int (*unlock) (scd_token_t *token, char *passwd,
-				unsigned char *pairing_secret, size_t pairing_sec_len);
+	bool (*is_locked)(scd_token_t *token);
+	bool (*is_locked_till_reboot)(scd_token_t *token);
 
-    bool (*is_locked) (scd_token_t *token);
-    bool (*is_locked_till_reboot) (scd_token_t *token);
+	int (*wrap_key)(scd_token_t *token, char *label, unsigned char *plain_key,
+			size_t plain_key_len, unsigned char **wrapped_key, int *wrapped_key_len);
 
-    int (*wrap_key) (scd_token_t *token, char *label,
-				  unsigned char *plain_key, size_t plain_key_len,
-				  unsigned char **wrapped_key, int *wrapped_key_len);
+	int (*unwrap_key)(scd_token_t *token, char *label, unsigned char *wrapped_key,
+			  size_t wrapped_key_len, unsigned char **plain_key, int *plain_key_len);
 
-    int (*unwrap_key) (scd_token_t *token, char *label,
-                       unsigned char *wrapped_key, size_t wrapped_key_len,
-		               unsigned char **plain_key, int *plain_key_len);
-
-    int (*change_passphrase) (scd_token_t *token,
-                        const char *oldpass, const char *newpass,
-                        unsigned char *pairing_secret, size_t pairing_sec_len,
-                        bool is_provisioning);
+	int (*change_passphrase)(scd_token_t *token, const char *oldpass, const char *newpass,
+				 unsigned char *pairing_secret, size_t pairing_sec_len,
+				 bool is_provisioning);
 };
 
 /**

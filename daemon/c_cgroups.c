@@ -30,7 +30,6 @@
 #include "hardware.h"
 #include "uevent.h"
 
-
 #ifdef LOGF_MIN_PRIO
 #undef LOGF_MIN_PRIO
 #endif

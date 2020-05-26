@@ -1053,8 +1053,8 @@ control_handle_message(control_t *control, const ControllerToDaemon *msg, int fd
 			res = cmld_container_start_with_smartcard(control, container, key);
 			if (res != 0) {
 				DEBUG("Token has not been initialized yet");
-				res = control_send_message(CONTROL_RESPONSE_CONTAINER_TOKEN_UNINITIALIZED,
-							fd);
+				res = control_send_message(
+					CONTROL_RESPONSE_CONTAINER_TOKEN_UNINITIALIZED, fd);
 			}
 		} else if (container_is_encrypted(container)) {
 			res = control_send_message(CONTROL_RESPONSE_CONTAINER_START_PASSWD_WRONG,
@@ -1203,7 +1203,8 @@ control_handle_message(control_t *control, const ControllerToDaemon *msg, int fd
 	}
 
 	case CONTROLLER_TO_DAEMON__COMMAND__CONTAINER_CHANGE_TOKEN_PIN: {
-		res = cmld_container_change_token_pin(control, container, msg->device_pin, msg->device_newpin);
+		res = cmld_container_change_token_pin(control, container, msg->device_pin,
+						      msg->device_newpin);
 	} break;
 
 	default:

@@ -301,7 +301,7 @@ container_new_internal(const uuid_t *uuid, const char *name, container_type_t ty
 	 * marker that the token aossicated with the container has been initialized
 	 */
 	if (mkdir(images_dir, 0755) < 0 && errno != EEXIST) {
-		ERROR_ERRNO("Cound not mkdir container directory %s",images_dir);
+		ERROR_ERRNO("Cound not mkdir container directory %s", images_dir);
 	}
 
 	container->color = color;
@@ -2449,7 +2449,7 @@ container_get_token_type(const container_t *container)
 
 	container_token_type_t ret;
 	container_config_t *conf = container_config_new(container->config_filename, NULL, 0);
-	ret =  container_config_get_token_type(conf);
+	ret = container_config_get_token_type(conf);
 	container_config_free(conf);
 	return ret;
 }

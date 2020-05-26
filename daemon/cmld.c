@@ -660,15 +660,15 @@ cmld_container_start(container_t *container, const char *key)
 }
 
 int
-cmld_container_change_token_pin(control_t *control, container_t *container,
-								const char *passwd, const char *newpasswd)
+cmld_container_change_token_pin(control_t *control, container_t *container, const char *passwd,
+				const char *newpasswd)
 {
 	ASSERT(container);
 	ASSERT(passwd);
 	ASSERT(newpasswd);
 
-	return
-	smartcard_change_container_pin(cmld_smartcard, control, container, passwd, newpasswd);
+	return smartcard_change_container_pin(cmld_smartcard, control, container, passwd,
+					      newpasswd);
 }
 
 int

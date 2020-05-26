@@ -38,8 +38,7 @@ typedef struct softtoken softtoken_t;
  * creates new p12 token file.
  */
 int
-softtoken_create_p12(const char* filename, const char* passwd,
-					 const char* name);
+softtoken_create_p12(const char *filename, const char *passwd, const char *name);
 
 /**
  * instantiates a new softtoken structure

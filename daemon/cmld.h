@@ -209,8 +209,8 @@ cmld_get_c0os(void);
  * @return 0 on message delivered to lower levels, -1 message delivery failed
  */
 int
-cmld_container_change_token_pin(control_t *control, container_t *container,
-								const char *passwd, const char *newpasswd);
+cmld_container_change_token_pin(control_t *control, container_t *container, const char *passwd,
+				const char *newpasswd);
 
 /**
  * Change the pin of the device token.

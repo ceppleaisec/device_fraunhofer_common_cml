@@ -78,7 +78,6 @@ static list_t *scd_token_list = NULL;
 static scd_control_t *scd_control_cmld = NULL;
 static logf_handler_t *scd_logfile_handler = NULL;
 
-
 /**
  * returns 1 if a given file is a p12 token, otherwise 0
  */
@@ -384,25 +383,26 @@ scd_load_softtoken(const char *path, const char *name)
 }
 
 scd_tokentype_t
-scd_proto_to_tokentype(const DaemonToToken *msg) {
+scd_proto_to_tokentype(const DaemonToToken *msg)
+{
 	switch (msg->token_type) {
-		case TOKEN_TYPE__NONE:
-			return NONE;
-		case TOKEN_TYPE__DEVICE:
-			return DEVICE;
-		case TOKEN_TYPE__USB:
-			return USB;
-		default: {
-			ERROR("Invalid token type value");
-			return -1;
-		}
+	case TOKEN_TYPE__NONE:
+		return NONE;
+	case TOKEN_TYPE__DEVICE:
+		return DEVICE;
+	case TOKEN_TYPE__USB:
+		return USB;
+	default: {
+		ERROR("Invalid token type value");
+		return -1;
+	}
 	}
 	return -1; // never reached
 }
 
 static scd_token_t *
-token_list_search(scd_tokentype_t type, const char *name) {
-
+token_list_search(scd_tokentype_t type, const char *name)
+{
 	ASSERT(name);
 
 	for (list_t *l = scd_token_list; l; l = l->next) {
@@ -421,7 +421,7 @@ token_list_search(scd_tokentype_t type, const char *name) {
  * Get a generic scd token.
  */
 scd_token_t *
-scd_get_token (const DaemonToToken *msg)
+scd_get_token(const DaemonToToken *msg)
 {
 	ASSERT(msg);
 
@@ -435,7 +435,7 @@ scd_get_token (const DaemonToToken *msg)
 
 	if (!token) {
 		token = scd_token_new(type, msg->token_uuid, SCD_TOKEN_DIR);
-		if(!token) {
+		if (!token) {
 			ERROR("Could not create new scd_token");
 			return NULL;
 		}
@@ -449,7 +449,8 @@ scd_get_token (const DaemonToToken *msg)
  * free a scd token and remove it from the global list of initialized tokens.
  */
 void
-scd_free_token(scd_token_t *token) {
+scd_free_token(scd_token_t *token)
+{
 	IF_NULL_RETURN(token);
 
 	scd_token_list = list_remove(scd_token_list, token);

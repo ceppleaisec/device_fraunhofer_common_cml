@@ -42,19 +42,17 @@
 #define TOKEN_KEY_LEN 32 /* must be coordonated with ssl_util.c */
 
 /* TODO: investigate enforcement done by hardware token */
-#define USBTOKEN_MAX_WRONG_UNLOCK_ATTEMPTS 3 
+#define USBTOKEN_MAX_WRONG_UNLOCK_ATTEMPTS 3
 
+static unsigned char requesticc[] = { 0x20, 0x12, 0x00, 0x01, 0x00 };
 
-static unsigned char requesticc[] = {0x20,0x12,0x00,0x01,0x00};
+static unsigned char skd_dskkey[] = { 0xA8, 0x2F, 0x30, 0x13, 0x0C, 0x11, 0x44, 0x69, 0x73, 0x6B,
+				      0x45, 0x6E, 0x63, 0x72, 0x79, 0x70, 0x74, 0x69, 0x6F, 0x6E,
+				      0x4B, 0x65, 0x79, 0x30, 0x08, 0x04, 0x01, 0x01, 0x03, 0x03,
+				      0x07, 0xC0, 0x10, 0xA0, 0x06, 0x30, 0x04, 0x02, 0x02, 0x00,
+				      0x80, 0xA1, 0x06, 0x30, 0x04, 0x30, 0x02, 0x04, 0x00 };
 
-static unsigned char skd_dskkey[] = { 0xA8,0x2F,0x30,0x13,0x0C,0x11,0x44,0x69,
-				0x73,0x6B,0x45,0x6E,0x63,0x72,0x79,0x70,0x74,
-				0x69,0x6F,0x6E,0x4B,0x65,0x79,0x30,0x08,0x04,
-				0x01,0x01,0x03,0x03,0x07,0xC0,0x10,0xA0,0x06,
-				0x30,0x04,0x02,0x02,0x00,0x80,0xA1,0x06,0x30,
-				0x04,0x30,0x02,0x04,0x00 };
-
-static unsigned char algo_dskkey[] = { 0x91,0x01,0x99 };
+static unsigned char algo_dskkey[] = { 0x91, 0x01, 0x99 };
 
 struct usbtoken {
 	/* Identify the usb device to be used */
@@ -62,7 +60,7 @@ struct usbtoken {
 	// int minor;
 	// char *serial;
 
-	int ctn;				// card terminal number
+	int ctn; // card terminal number
 
 	bool locked;			// whether the token is locked or not
 	unsigned wrong_unlock_attempts; // wrong consecutive password attempts
@@ -76,9 +74,10 @@ struct usbtoken {
  * Dump the memory pointed to by <mem>
  * TODO: remove
  */
-static void dump(unsigned char *mem, int len)
+static void
+dump(unsigned char *mem, int len)
 {
-	while(len--) {
+	while (len--) {
 		printf("%02x", *mem);
 		mem++;
 	}
@@ -95,7 +94,7 @@ static void dump(unsigned char *mem, int len)
  */
 static int
 get_auth_code(const char *pin, const unsigned char *pair_sec, size_t pair_sec_len,
-				unsigned char *auth_code_buf, size_t buf_len)
+	      unsigned char *auth_code_buf, size_t buf_len)
 {
 	int ofs = 0;
 
@@ -103,21 +102,21 @@ get_auth_code(const char *pin, const unsigned char *pair_sec, size_t pair_sec_le
 
 	ASSERT(auth_code_buf);
 
-	TRACE("USBTOKEN: pairing_sec_len: %d", (int) pair_sec_len);
-	TRACE("USBTOKEN: pin_len: %d", (int) pin_len);
+	TRACE("USBTOKEN: pairing_sec_len: %d", (int)pair_sec_len);
+	TRACE("USBTOKEN: pin_len: %d", (int)pin_len);
 
 	if ((pin == NULL) || (strlen(pin) == 0)) {
 		ERROR("No PIN provided");
 		return -1;
 	}
 
-    if ((pin_len +  pair_sec_len) > buf_len ) {
-        ERROR("PIN and pairing secret combined must not exceed %d",
-				TOKEN_MAX_AUTH_CODE_LEN);
-        return -1;
-    }
+	if ((pin_len + pair_sec_len) > buf_len) {
+		ERROR("PIN and pairing secret combined must not exceed %d",
+		      TOKEN_MAX_AUTH_CODE_LEN);
+		return -1;
+	}
 
-    if (pair_sec != NULL) {
+	if (pair_sec != NULL) {
 		memcpy(auth_code_buf, pair_sec, pair_sec_len);
 		ofs = pair_sec_len;
 	}
@@ -128,14 +127,14 @@ get_auth_code(const char *pin, const unsigned char *pair_sec, size_t pair_sec_le
 	TRACE("USBTOKEN: Total authentication code len: %d\nAuth code: ", ofs);
 	dump(auth_code_buf, ofs);
 
-
 	return ofs;
 }
 
 /*
  * Request card
  */
-static int requestICC(int ctn)
+static int
+requestICC(int ctn)
 {
 	unsigned char Brsp[260];
 	unsigned short lr;
@@ -144,21 +143,21 @@ static int requestICC(int ctn)
 
 	TRACE("USBTOKEN: requestICC");
 
-	dad = 1;   /* Reader */
-	sad = 2;   /* Host */
+	dad = 1; /* Reader */
+	sad = 2; /* Host */
 	lr = sizeof(Brsp);
 
 	rc = CT_data((unsigned short)ctn, &dad, &sad, sizeof(requesticc),
-                    (unsigned char *) &requesticc, &lr, Brsp);
+		     (unsigned char *)&requesticc, &lr, Brsp);
 	if (rc != OK) {
 		ERROR("CT_data failedwith code: %d", rc);
 		return rc;
-	}				
+	}
 
 	DEBUG("USBTOKEN: ATR: ");
 	dump(Brsp, lr);
 
-	if((Brsp[0] == 0x64) || (Brsp[0] == 0x62)) {
+	if ((Brsp[0] == 0x64) || (Brsp[0] == 0x62)) {
 		ERROR("No card present or card reset error");
 		return -1;
 	}
@@ -171,8 +170,10 @@ static int requestICC(int ctn)
  *
  * @param sw the SW1/SW2 status word returned by the VERIFY or CHANGE REFERENCE DATA command
  */
-static void reportPinStatus(int sw) {
-	switch(sw) {
+static void
+reportPinStatus(int sw)
+{
+	switch (sw) {
 	case 0x6700:
 		DEBUG("USBTOKEN: Wrong PIN length. Pairing secret missing ?");
 		break;
@@ -203,7 +204,8 @@ static void reportPinStatus(int sw) {
  *
  * TODO: reports false length of PIN as dedicated error. Is that really desirable?
  */
-static int authenticateUser(int ctn, unsigned char *auth_code, size_t auth_code_len)
+static int
+authenticateUser(int ctn, unsigned char *auth_code, size_t auth_code_len)
 {
 	int rc;
 	TRACE("USBTOKEN: authenticateUser");
@@ -227,14 +229,15 @@ static int authenticateUser(int ctn, unsigned char *auth_code, size_t auth_code_
  *
  * TODO: make params const where possible
  */
-static int produceKey(usbtoken_t *token, unsigned char *label, size_t label_len,
-                        unsigned char *key, size_t key_len)
+static int
+produceKey(usbtoken_t *token, unsigned char *label, size_t label_len, unsigned char *key,
+	   size_t key_len)
 {
 	int rc;
 
 	TRACE("USBTOKEN: produceKey");
 
-	if ( (authenticateUser(token->ctn, token->auth_code, token->auth_code_len)) < 0 ) {
+	if ((authenticateUser(token->ctn, token->auth_code, token->auth_code_len)) < 0) {
 		// this should no possibly happen; TODO: handle properly if it happens anyway
 		ERROR("Failed to authenticate to token");
 		return -1;
@@ -244,8 +247,8 @@ static int produceKey(usbtoken_t *token, unsigned char *label, size_t label_len,
 
 	if ((NULL == label) || (0 == label_len)) {
 		WARN("USBTOKEN: no 'label' provided for key derivation; using default label");
-		rc = deriveKey(token->ctn, 1, (unsigned char *)def_label,
-				strlen(def_label), key, key_len);
+		rc = deriveKey(token->ctn, 1, (unsigned char *)def_label, strlen(def_label), key,
+			       key_len);
 	} else {
 		rc = deriveKey(token->ctn, 1, label, label_len, key, key_len);
 	}
@@ -255,21 +258,22 @@ static int produceKey(usbtoken_t *token, unsigned char *label, size_t label_len,
 		return rc;
 	}
 
-    DEBUG("Usbtoken generated key:");
+	DEBUG("Usbtoken generated key:");
 	dump(key, key_len); /* TODO: remove */
 
 	return 0;
 }
 
-/** 
+/**
  * Initializes a usb token
  * TODO: select and init only desired usb token
  */
 usbtoken_t *
-usbtoken_init(void) {
+usbtoken_init(void)
+{
 	unsigned short lr;
 	int rc;
-	unsigned char readers[4096],*po; /* TODO */
+	unsigned char readers[4096], *po; /* TODO */
 	usbtoken_t *token = NULL;
 
 	TRACE("USBTOKEN: usbtoken_init");
@@ -312,7 +316,7 @@ usbtoken_init(void) {
 /* TODO: rename: perform_pairing */
 static int
 provision_auth_code(usbtoken_t *token, const char *tpin, const char *newpass,
-					unsigned char *pairing_secret, size_t pairing_sec_len)
+		    unsigned char *pairing_secret, size_t pairing_sec_len)
 {
 	ASSERT(token);
 	ASSERT(tpin);
@@ -331,9 +335,9 @@ provision_auth_code(usbtoken_t *token, const char *tpin, const char *newpass,
 		return -1;
 	}
 
-	newcode_len = get_auth_code(newpass, pairing_secret, pairing_sec_len, 
-					newcode, sizeof(newcode));
-	if (newcode_len < 0 ) {
+	newcode_len =
+		get_auth_code(newpass, pairing_secret, pairing_sec_len, newcode, sizeof(newcode));
+	if (newcode_len < 0) {
 		ERROR("Could not derive new authentication code");
 		return -1;
 	}
@@ -357,18 +361,18 @@ provision_auth_code(usbtoken_t *token, const char *tpin, const char *newpass,
 	 * TODO: document security arch and workflow
 	 */
 	rc = generateSymmetricKey(token->ctn, 1, algo_dskkey, sizeof(algo_dskkey));
-    if (rc < 0) {
-        return rc;
-    }
+	if (rc < 0) {
+		return rc;
+	}
 
-    rc = writeKeyDescription(token->ctn, 1, skd_dskkey, sizeof(skd_dskkey));
+	rc = writeKeyDescription(token->ctn, 1, skd_dskkey, sizeof(skd_dskkey));
 
 	return rc;
 }
 
 static int
 change_user_pin(usbtoken_t *token, const char *oldpass, const char *newpass,
-					unsigned char *pairing_secret, size_t pairing_sec_len)
+		unsigned char *pairing_secret, size_t pairing_sec_len)
 {
 	ASSERT(token);
 	ASSERT(oldpass);
@@ -389,16 +393,16 @@ change_user_pin(usbtoken_t *token, const char *oldpass, const char *newpass,
 		return -1;
 	}
 
-	newcode_len = get_auth_code(newpass, pairing_secret, pairing_sec_len,
-					newcode, sizeof(newcode));
-	if (newcode_len < 0 ) {
+	newcode_len =
+		get_auth_code(newpass, pairing_secret, pairing_sec_len, newcode, sizeof(newcode));
+	if (newcode_len < 0) {
 		ERROR("Could not derive new authentication code");
 		return -1;
 	}
 
-	oldcode_len = get_auth_code(oldpass, pairing_secret, pairing_sec_len, 
-					oldcode, sizeof(oldcode));
-	if (oldcode_len < 0 ) {
+	oldcode_len =
+		get_auth_code(oldpass, pairing_secret, pairing_sec_len, oldcode, sizeof(oldcode));
+	if (oldcode_len < 0) {
 		ERROR("Could not derive old authentication code");
 		return -1;
 	}
@@ -406,7 +410,7 @@ change_user_pin(usbtoken_t *token, const char *oldpass, const char *newpass,
 	rc = changePIN(token->ctn, oldcode, oldcode_len, newcode, newcode_len);
 
 	memset(newcode, 0, sizeof(newcode));
-	memset(oldcode, 0 , sizeof(oldcode));
+	memset(oldcode, 0, sizeof(oldcode));
 
 	if (rc < 0) {
 		return rc;
@@ -424,20 +428,19 @@ change_user_pin(usbtoken_t *token, const char *oldpass, const char *newpass,
 
 int
 usbtoken_change_passphrase(usbtoken_t *token, const char *oldpass, const char *newpass,
-							unsigned char *pairing_secret, size_t pairing_sec_len,
-							bool is_provisioning)
+			   unsigned char *pairing_secret, size_t pairing_sec_len,
+			   bool is_provisioning)
 {
 	TRACE("USBTOKEN: usbtoken_change_passphrase");
 	ASSERT(token);
 	ASSERT(oldpass);
 	ASSERT(newpass);
 
-	return ( is_provisioning ?
-		provision_auth_code(token, oldpass, newpass, pairing_secret, pairing_sec_len) :
-		change_user_pin(token, oldpass, newpass, pairing_secret, pairing_sec_len)
-	);
+	return (is_provisioning ?
+			provision_auth_code(token, oldpass, newpass, pairing_secret,
+					    pairing_sec_len) :
+			change_user_pin(token, oldpass, newpass, pairing_secret, pairing_sec_len));
 }
-
 
 /**
  * Free secrets.
@@ -451,8 +454,8 @@ usbtoken_free_secrets(usbtoken_t *token)
 	mem_free(token->auth_code);
 
 	TRACE("USBTOKEN: usbtoken_free_secrets");
-	
- 	/* TODO: are there any secrets to be freed? */
+
+	/* TODO: are there any secrets to be freed? */
 }
 
 void
@@ -467,14 +470,13 @@ usbtoken_free(usbtoken_t *token)
 	mem_free(token);
 }
 
-
 /**
  * Wraps the plain key.
  */
 int
 usbtoken_wrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
-				  unsigned char *plain_key, size_t plain_key_len,
-				  unsigned char **wrapped_key, int *wrapped_key_len)
+		  unsigned char *plain_key, size_t plain_key_len, unsigned char **wrapped_key,
+		  int *wrapped_key_len)
 {
 	ASSERT(token);
 
@@ -513,8 +515,8 @@ usbtoken_wrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
 
 int
 usbtoken_unwrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
-					unsigned char *wrapped_key, size_t wrapped_key_len,
-		    		unsigned char **plain_key, int *plain_key_len)
+		    unsigned char *wrapped_key, size_t wrapped_key_len, unsigned char **plain_key,
+		    int *plain_key_len)
 {
 	ASSERT(token);
 	ASSERT(wrapped_key);
@@ -547,16 +549,16 @@ usbtoken_unwrap_key(usbtoken_t *token, unsigned char *label, size_t label_len,
 		ERROR("ssl_unwrap_key_sym failed");
 		return -1;
 	}
-	
+
 	TRACE("USBTOKEN: key unwrap successful");
-	return rc;	
+	return rc;
 }
 
 bool
 usbtoken_is_locked_till_reboot(usbtoken_t *token)
 {
 	ASSERT(token);
-	
+
 	TRACE("USBTOKEN: usbtoken_is_locked_till_reboot");
 
 	return token->wrong_unlock_attempts >= USBTOKEN_MAX_WRONG_UNLOCK_ATTEMPTS;
@@ -566,9 +568,9 @@ bool
 usbtoken_is_locked(usbtoken_t *token)
 {
 	ASSERT(token);
-	
+
 	TRACE("USBTOKEN: usbtoken_is_locked");
-	
+
 	return token->locked;
 }
 
@@ -583,8 +585,8 @@ usbtoken_available(void)
 }
 
 int
-usbtoken_unlock(usbtoken_t *token, char *passwd, 
-				unsigned char *pairing_secret, size_t pairing_sec_len)
+usbtoken_unlock(usbtoken_t *token, char *passwd, unsigned char *pairing_secret,
+		size_t pairing_sec_len)
 {
 	ASSERT(token);
 	ASSERT(passwd);
@@ -610,7 +612,7 @@ usbtoken_unlock(usbtoken_t *token, char *passwd,
 	unsigned char code[TOKEN_MAX_AUTH_CODE_LEN]; /* TODO: is this length limited by the token? */
 
 	auth_code_len = get_auth_code(passwd, pairing_secret, pairing_sec_len, code, sizeof(code));
-	if (auth_code_len < 0 ) {
+	if (auth_code_len < 0) {
 		ERROR("Could not derive authentication code");
 		return -1;
 	}
@@ -619,7 +621,7 @@ usbtoken_unlock(usbtoken_t *token, char *passwd,
 	token->auth_code_len = auth_code_len;
 
 	int res = authenticateUser(token->ctn, code, auth_code_len);
-	if (res == -1) {// wrong password
+	if (res == -1) { // wrong password
 		token->wrong_unlock_attempts++;
 		ERROR("Usbtoken unlock failed (wrong PW)");
 	} else if (res == 0) {
