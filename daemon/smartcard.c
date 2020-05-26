@@ -88,17 +88,17 @@ bytes_to_string_new(unsigned char *data, size_t len)
 }
 
 static TokenType
-smartcard_tokentype_to_proto(smartcard_tokentype_t tokentype)
+tokentype_to_proto(container_token_type_t tokentype)
 {
 	switch (tokentype) {
-	case NONE:
+	case CONTAINER_TOKEN_TYPE_NONE:
 		return TOKEN_TYPE__NONE;
-	case DEVICE:
+	case CONTAINER_TOKEN_TYPE_DEVICE:
 		return TOKEN_TYPE__DEVICE;
-	case USB:
+	case CONTAINER_TOKEN_TYPE_USB:
 		return TOKEN_TYPE__USB;
 	default:
-		FATAL("Invalid smartcard_tokentype_t value : %d", tokentype);
+		FATAL("Invalid container_token_type_t value : %d", tokentype);
 	}
 }
 
@@ -282,20 +282,8 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 					uuid_string(container_get_uuid(startdata->container)));
 
 				out.has_token_type = true;
-				switch (container_get_token_type(startdata->container)) {
-				case CONTAINER_TOKEN_TYPE_DEVICE: {
-					DEBUG("Using token type DEVICE");
-					out.token_type = smartcard_tokentype_to_proto(DEVICE);
-				} break;
-				case CONTAINER_TOKEN_TYPE_USB: {
-					DEBUG("Using token type USB");
-					out.token_type = smartcard_tokentype_to_proto(USB);
-				} break;
-				default: {
-				}
-					ERROR("Token type not supported!");
-					return;
-				}
+				out.token_type = tokentype_to_proto(
+					container_get_token_type(startdata->container));
 
 				protobuf_send_message(startdata->smartcard->sock,
 						      (ProtobufCMessage *)&out);
@@ -330,20 +318,8 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 					uuid_string(container_get_uuid(startdata->container)));
 
 				out.has_token_type = true;
-				switch (container_get_token_type(startdata->container)) {
-				case CONTAINER_TOKEN_TYPE_DEVICE: {
-					DEBUG("Using token type DEVICE");
-					out.token_type = smartcard_tokentype_to_proto(DEVICE);
-				} break;
-				case CONTAINER_TOKEN_TYPE_USB: {
-					DEBUG("Using token type USB");
-					out.token_type = smartcard_tokentype_to_proto(USB);
-				} break;
-				default: {
-				}
-					ERROR("Token type not supported!");
-					return;
-				}
+				out.token_type = tokentype_to_proto(
+					container_get_token_type(startdata->container));
 
 				protobuf_send_message(startdata->smartcard->sock,
 						      (ProtobufCMessage *)&out);
@@ -356,21 +332,11 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 			// lock token via scd
 			DaemonToToken out = DAEMON_TO_TOKEN__INIT;
 			out.code = DAEMON_TO_TOKEN__CODE__LOCK;
+
 			out.has_token_type = true;
-			switch (container_get_token_type(startdata->container)) {
-			case CONTAINER_TOKEN_TYPE_DEVICE: {
-				DEBUG("Using token type DEVICE");
-				out.token_type = smartcard_tokentype_to_proto(DEVICE);
-			} break;
-			case CONTAINER_TOKEN_TYPE_USB: {
-				DEBUG("Using token type USB");
-				out.token_type = smartcard_tokentype_to_proto(USB);
-			} break;
-			default: {
-			}
-				ERROR("Token type not supported!");
-				return;
-			}
+			out.token_type =
+				tokentype_to_proto(container_get_token_type(startdata->container));
+
 			protobuf_send_message(startdata->smartcard->sock, (ProtobufCMessage *)&out);
 			// start container
 			if (!msg->has_unwrapped_key) {
@@ -387,21 +353,11 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 			// lock token via scd
 			DaemonToToken out = DAEMON_TO_TOKEN__INIT;
 			out.code = DAEMON_TO_TOKEN__CODE__LOCK;
+
 			out.has_token_type = true;
-			switch (container_get_token_type(startdata->container)) {
-			case CONTAINER_TOKEN_TYPE_DEVICE: {
-				DEBUG("Using token type DEVICE");
-				out.token_type = smartcard_tokentype_to_proto(DEVICE);
-			} break;
-			case CONTAINER_TOKEN_TYPE_USB: {
-				DEBUG("Using token type USB");
-				out.token_type = smartcard_tokentype_to_proto(USB);
-			} break;
-			default: {
-			}
-				ERROR("Token type not supported!");
-				return;
-			}
+			out.token_type =
+				tokentype_to_proto(container_get_token_type(startdata->container));
+
 			protobuf_send_message(startdata->smartcard->sock, (ProtobufCMessage *)&out);
 			// save wrapped key
 			if (!msg->has_wrapped_key) {
@@ -484,27 +440,8 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 	out.pairing_secret.len = pair_sec_len;
 	out.pairing_secret.data = mem_memcpy(pair_sec, sizeof(pair_sec));
 
-	switch (container_get_token_type(container)) {
-	case CONTAINER_TOKEN_TYPE_DEVICE: {
-		TRACE("Using token type DEVICE");
-		out.has_token_type = true;
-		out.token_type = smartcard_tokentype_to_proto(DEVICE);
-	} break;
-
-	case CONTAINER_TOKEN_TYPE_USB: {
-		TRACE("Using token type USB");
-		out.has_token_type = true;
-		out.token_type = smartcard_tokentype_to_proto(USB);
-	} break;
-
-	default: {
-		ERROR("Token type not supported!");
-		mem_free(startdata);
-		return -1;
-	}
-	}
-
-	DEBUG("Smartcard token type: %d", out.token_type);
+	out.has_token_type = true;
+	out.token_type = tokentype_to_proto(container_get_token_type(startdata->container));
 
 	if (LOGF_PRIO_TRACE >= LOGF_LOG_MIN_PRIO) {
 		char *msg_text = protobuf_c_text_to_string((ProtobufCMessage *)&out, NULL);
@@ -666,23 +603,7 @@ smartcard_change_container_pin(smartcard_t *smartcard, control_t *control, conta
 				     DAEMON_TO_TOKEN__CODE__CHANGE_PIN;
 
 	out.has_token_type = true;
-	switch (container_get_token_type(container)) {
-	case CONTAINER_TOKEN_TYPE_DEVICE: {
-		TRACE("Using token type DEVICE");
-		out.token_type = smartcard_tokentype_to_proto(DEVICE);
-	} break;
-
-	case CONTAINER_TOKEN_TYPE_USB: {
-		TRACE("Using token type USB");
-		out.token_type = smartcard_tokentype_to_proto(USB);
-	} break;
-
-	default: {
-		ERROR("Token type not supported!");
-		control_send_message(CONTROL_RESPONSE_CONTAINER_CHANGE_PIN_FAILED, resp_fd);
-		return -1;
-	}
-	}
+	out.token_type = tokentype_to_proto(container_get_token_type(startdata->container));
 
 	out.token_pin = mem_strdup(passwd);
 	out.token_newpin = mem_strdup(newpasswd);

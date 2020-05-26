@@ -36,18 +36,12 @@ typedef struct smartcard smartcard_t;
 smartcard_t *
 smartcard_new(const char *path);
 
-/**
- * Choice of supported token types.
- * Must be kept in sync with scd.proto
- */
-typedef enum smartcard_tokentype { NONE, DEVICE, USB } smartcard_tokentype_t;
-
 int
 smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 				  container_t *container, const char *passwd);
 
 /**
- * Change the passphrase/pin of the token assocaited to the container.
+ * Change the passphrase/pin of the token associated to the container.
  * The function checks whether the token has previously been provisioned
  * with a device bound authentication code.
  * If it has not the function will interprete
@@ -61,7 +55,6 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
  * @param passwd passphrase/pin of the token
  * @param newpasswd the new passphrase/pin for the token to which will be changed
  * return -1 on message transmission failure, 0 if message was sent to SCD
- *
  */
 int
 smartcard_change_container_pin(smartcard_t *smartcard, control_t *control, container_t *container,
