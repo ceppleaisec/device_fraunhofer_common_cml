@@ -154,7 +154,7 @@ int_change_pw_usb(scd_token_t *token, const char *oldpass, const char *newpass,
  * sets the function pointer appropriately
  */
 scd_token_t *
-scd_token_new(scd_tokentype_t type, const char *name, const char *st_path)
+scd_token_new(token_constr_data_t *constr_data)
 {
 	scd_token_t *new_token;
 
@@ -173,14 +173,14 @@ scd_token_new(scd_tokentype_t type, const char *name, const char *st_path)
 		return NULL;
 	}
 
-	new_token->token_data->token_uuid = uuid_new(name);
+	new_token->token_data->token_uuid = uuid_new(constr_data->uuid);
 	if (!new_token->token_data->token_uuid) {
 		ERROR("Could not allocate memory for token_uuid");
 		/* TODO: cleanup */
 		return NULL;
 	}
 
-	switch (type) {
+	switch (constr_data->type) {
 	case (NONE): {
 		WARN("Create scd_token with internal type 'NONE' selected");
 		new_token->token_data->type = NONE;
@@ -189,17 +189,19 @@ scd_token_new(scd_tokentype_t type, const char *name, const char *st_path)
 	case (DEVICE): {
 		DEBUG("Create scd_token with internal type 'DEVICE'");
 
-		ASSERT(name);
-		ASSERT(st_path);
+		ASSERT(constr_data->uuid);
+		ASSERT(constr_data->str.softtoken_dir);
 
 		/* TODO:
              * if this method is called, the softtoken that the scd was referring
              * has not been intialized before. However, its associate p12 structure
              * might have been. We must check that.
              */
-		char *token_file = mem_printf("%s/%s%s", st_path, name, STOKEN_DEFAULT_EXT);
+		char *token_file = mem_printf("%s/%s%s", constr_data->str.softtoken_dir,
+					      constr_data->uuid, STOKEN_DEFAULT_EXT);
 		if (!file_exists(token_file)) {
-			if (softtoken_create_p12(token_file, STOKEN_DEFAULT_PASS, name) != 0) {
+			if (softtoken_create_p12(token_file, STOKEN_DEFAULT_PASS,
+						 constr_data->uuid) != 0) {
 				ERROR("could not create new softtoken file");
 				/* TODO: cleanup */
 			}
@@ -224,8 +226,12 @@ scd_token_new(scd_tokentype_t type, const char *name, const char *st_path)
 	}
 	case (USB): {
 		DEBUG("Create scd_token with internal type 'USB'");
-		new_token->token_data->int_token.usbtoken = usbtoken_init();
-		ASSERT(new_token->token_data->int_token.usbtoken);
+
+		ASSERT(constr_data->uuid);
+		ASSERT(constr_data->str.usbtoken_serial);
+
+		new_token->token_data->int_token.usbtoken =
+			usbtoken_init(constr_data->str.usbtoken_serial);
 		if (NULL == new_token->token_data->int_token.usbtoken) {
 			ERROR("Creation of usbtoken failed");
 			mem_free(new_token);
@@ -254,12 +260,18 @@ scd_token_new(scd_tokentype_t type, const char *name, const char *st_path)
 scd_tokentype_t
 scd_token_get_type(scd_token_t *token)
 {
+	TRACE("SCD TOKEN: scd_token_get_type");
+
+	ASSERT(token->token_data->type);
 	return token->token_data->type;
 }
 
 uuid_t *
 scd_token_get_uuid(scd_token_t *token)
 {
+	TRACE("SCD TOKEN: scd_token_get_uuid");
+
+	ASSERT(token->token_data->token_uuid);
 	return token->token_data->token_uuid;
 }
 

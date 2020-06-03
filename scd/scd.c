@@ -1,6 +1,6 @@
 /*
  * This file is part of trust|me
- * Copyright(c) 2013 - 2017 Fraunhofer AISEC
+ * Copyright(c) 2013 - 2020 Fraunhofer AISEC
  * Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -32,7 +32,7 @@
 #include "device.pb-c.h"
 #endif
 
-#define LOGF_LOG_MIN_PRIO LOGF_PRIO_TRACE
+//#define LOGF_LOG_MIN_PRIO LOGF_PRIO_TRACE
 #include "common/macro.h"
 #include "common/mem.h"
 #include "common/event.h"
@@ -66,12 +66,6 @@
 #define TOKEN_DEFAULT_PASS "trustme"
 #define TOKEN_DEFAULT_NAME "testuser"
 #define TOKEN_DEFAULT_EXT ".p12"
-
-#ifdef DEBUG_BUILD
-#define SYSTEM_DEFAULT_REBOOT HALT
-#else
-#define SYSTEM_DEFAULT_REBOOT REBOOT
-#endif
 
 static list_t *scd_token_list = NULL;
 
@@ -138,7 +132,7 @@ provisioning_mode()
 	if (!file_exists(DEVICE_CONF)) {
 		ERROR("Going back to bootloader mode, device config does not exist (Proper"
 		      "userdata image needs to be flashed first)");
-		reboot_reboot(SYSTEM_DEFAULT_REBOOT);
+		reboot_reboot(REBOOT);
 	}
 
 	// if available, use tpm to create and store device key
@@ -147,7 +141,7 @@ provisioning_mode()
 		// assumption: tpm2d is launched prior to scd, and creates a keypair on first boot
 		if (!file_exists(TPM2D_ATT_TSS_FILE)) {
 			ERROR("TPM keypair not found, missing %s", TPM2D_ATT_TSS_FILE);
-			reboot_reboot(SYSTEM_DEFAULT_REBOOT);
+			reboot_reboot(REBOOT);
 		}
 		dev_key_file = TPM2D_ATT_TSS_FILE;
 	}
@@ -403,15 +397,24 @@ scd_proto_to_tokentype(const DaemonToToken *msg)
 static scd_token_t *
 token_list_search(scd_tokentype_t type, const char *name)
 {
+	TRACE("SCD: token_list_search");
 	ASSERT(name);
 
-	for (list_t *l = scd_token_list; l; l = l->next) {
-		scd_token_t *t = l->data;
+	scd_token_t *t;
 
-		if (type == scd_token_get_type(t)) {
-			if (strncmp(name, uuid_string(scd_token_get_uuid(t)), strlen(name)) == 0) {
-				return t;
-			}
+	for (list_t *l = scd_token_list; l; l = l->next) {
+		t = l->data;
+		ASSERT(t);
+
+		if (type != scd_token_get_type(t)) {
+			TRACE("wrong type");
+			continue;
+		}
+
+		if (strncmp(name, uuid_string(scd_token_get_uuid(t)), strlen(name)) == 0) {
+			TRACE("Token %s found in scd_token_list",
+			      uuid_string(scd_token_get_uuid(t)));
+			return t;
 		}
 	}
 	return NULL;
@@ -424,6 +427,7 @@ scd_token_t *
 scd_get_token(const DaemonToToken *msg)
 {
 	ASSERT(msg);
+	ASSERT(msg->token_uuid);
 
 	TRACE("SCD: scd_get_token. proto_tokentype: %d", msg->token_type);
 
@@ -434,7 +438,27 @@ scd_get_token(const DaemonToToken *msg)
 	token = token_list_search(type, msg->token_uuid);
 
 	if (!token) {
-		token = scd_token_new(type, msg->token_uuid, SCD_TOKEN_DIR);
+		TRACE("Creating new token");
+
+		token_constr_data_t create_data;
+
+		create_data.type = type;
+
+		if (type == NONE) {
+			create_data.str.softtoken_dir = NULL;
+		} else if (type == DEVICE) {
+			create_data.str.softtoken_dir = SCD_TOKEN_DIR;
+		} else if (type == USB) {
+			ASSERT(msg->usbtoken_serial);
+			create_data.str.usbtoken_serial = msg->usbtoken_serial;
+		} else {
+			ERROR("Type of token not recognized");
+			return NULL;
+		}
+
+		create_data.uuid = msg->token_uuid;
+
+		token = scd_token_new(&create_data);
 		if (!token) {
 			ERROR("Could not create new scd_token");
 			return NULL;
@@ -453,9 +477,7 @@ scd_free_token(scd_token_t *token)
 {
 	IF_NULL_RETURN(token);
 
-	scd_token_list = list_remove(scd_token_list, token);
-
 	scd_token_free(token);
-
+	scd_token_list = list_remove(scd_token_list, token);
 	token = NULL;
 }

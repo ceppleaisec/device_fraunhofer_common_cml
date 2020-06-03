@@ -597,10 +597,10 @@ container_config_get_usbdev_list_new(const container_config_t *config)
 	for (size_t i = 0; i < config->cfg->n_usb_configs; ++i) {
 		uint16_t vendor, product;
 		sscanf(config->cfg->usb_configs[i]->id, "%hx:%hx", &vendor, &product);
-		uevent_usbdev_t *usbdev =
-			uevent_usbdev_new(container_config_proto_to_usb_type(config->cfg->type),
-					  vendor, product, config->cfg->usb_configs[i]->serial,
-					  config->cfg->usb_configs[i]->assign);
+		uevent_usbdev_t *usbdev = uevent_usbdev_new(
+			container_config_proto_to_usb_type(config->cfg->usb_configs[i]->type),
+			vendor, product, config->cfg->usb_configs[i]->serial,
+			config->cfg->usb_configs[i]->assign);
 		usbdev_list = list_append(usbdev_list, usbdev);
 	}
 	return usbdev_list;

@@ -150,6 +150,13 @@ uevent_usbdev_get_id_product(uevent_usbdev_t *usbdev)
 	return usbdev->id_product;
 }
 
+uevent_usbdev_type_t
+uevent_usbdev_get_type(uevent_usbdev_t *usbdev)
+{
+	ASSERT(usbdev);
+	return usbdev->type;
+}
+
 char *
 uevent_usbdev_get_i_serial(uevent_usbdev_t *usbdev)
 {

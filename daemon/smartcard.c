@@ -285,10 +285,22 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 				out.token_type = tokentype_to_proto(
 					container_get_token_type(startdata->container));
 
+				if (out.token_type == TOKEN_TYPE__USB)
+					out.usbtoken_serial =
+						container_get_usbtoken_serial(startdata->container);
+
+				/** token uuid are the same as container uuid for now
+				 * TODO: evaluate whether a more advanced token handling than the current
+				 * 		one-on-on mapping is beneficial
+				 */
+				out.token_uuid = mem_strdup(
+					uuid_string(container_get_uuid(startdata->container)));
+
 				protobuf_send_message(startdata->smartcard->sock,
 						      (ProtobufCMessage *)&out);
 
 				mem_free(out.container_uuid);
+				mem_free(out.token_uuid);
 			} else {
 				DEBUG("No previous key found for container %s. Generating new key.",
 				      container_get_name(startdata->container));
@@ -320,11 +332,22 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 				out.has_token_type = true;
 				out.token_type = tokentype_to_proto(
 					container_get_token_type(startdata->container));
+				if (out.token_type == TOKEN_TYPE__USB)
+					out.usbtoken_serial =
+						container_get_usbtoken_serial(startdata->container);
+
+				/** token uuid are the same as container uuid for now
+				 * TODO: evaluate whether a more advanced token handling than the current
+				 * 		one-on-on mapping is beneficial
+				 */
+				out.token_uuid = mem_strdup(
+					uuid_string(container_get_uuid(startdata->container)));
 
 				protobuf_send_message(startdata->smartcard->sock,
 						      (ProtobufCMessage *)&out);
 
 				mem_free(out.container_uuid);
+				mem_free(out.token_uuid);
 			}
 			mem_free(keyfile);
 		} break;
@@ -336,8 +359,19 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 			out.has_token_type = true;
 			out.token_type =
 				tokentype_to_proto(container_get_token_type(startdata->container));
+			if (out.token_type == TOKEN_TYPE__USB)
+				out.usbtoken_serial =
+					container_get_usbtoken_serial(startdata->container);
+
+			/** token uuid are the same as container uuid for now
+			 * TODO: evaluate whether a more advanced token handling than the current
+			 * 		one-on-on mapping is beneficial
+			 */
+			out.token_uuid =
+				mem_strdup(uuid_string(container_get_uuid(startdata->container)));
 
 			protobuf_send_message(startdata->smartcard->sock, (ProtobufCMessage *)&out);
+			mem_free(out.token_uuid);
 			// start container
 			if (!msg->has_unwrapped_key) {
 				WARN("Expected derived key, but none was returned!");
@@ -357,8 +391,19 @@ smartcard_cb_start_container(int fd, unsigned events, event_io_t *io, void *data
 			out.has_token_type = true;
 			out.token_type =
 				tokentype_to_proto(container_get_token_type(startdata->container));
+			if (out.token_type == TOKEN_TYPE__USB)
+				out.usbtoken_serial =
+					container_get_usbtoken_serial(startdata->container);
+
+			/** token uuid are the same as container uuid for now
+			 * TODO: evaluate whether a more advanced token handling than the current
+			 * 		one-on-on mapping is beneficial
+			 */
+			out.token_uuid =
+				mem_strdup(uuid_string(container_get_uuid(startdata->container)));
 
 			protobuf_send_message(startdata->smartcard->sock, (ProtobufCMessage *)&out);
+			mem_free(out.token_uuid);
 			// save wrapped key
 			if (!msg->has_wrapped_key) {
 				WARN("Expected wrapped key, but none was returned!");
@@ -411,7 +456,7 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 	DEBUG("SCD: Passwd form UI: %s, size: %d", passwd, pw_size);
 
 	if (!container_token_is_provisioned(container)) {
-		ERROR("The token that is associated with this container must be initialized first");
+		ERROR("The token that is associated with this container must be paired to the device first");
 		control_send_message(CONTROL_RESPONSE_CONTAINER_TOKEN_UNINITIALIZED, resp_fd);
 		mem_free(startdata);
 		return -1;
@@ -442,6 +487,14 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 
 	out.has_token_type = true;
 	out.token_type = tokentype_to_proto(container_get_token_type(startdata->container));
+	if (out.token_type == TOKEN_TYPE__USB)
+		out.usbtoken_serial = container_get_usbtoken_serial(startdata->container);
+
+	/** token uuid are the same as container uuid for now
+	 * TODO: evaluate whether a more advanced token handling than the current
+	 * 		one-on-on mapping is beneficial
+	 */
+	out.token_uuid = mem_strdup(uuid_string(container_get_uuid(startdata->container)));
 
 	if (LOGF_PRIO_TRACE >= LOGF_LOG_MIN_PRIO) {
 		char *msg_text = protobuf_c_text_to_string((ProtobufCMessage *)&out, NULL);
@@ -454,6 +507,7 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 	mem_free(out.token_pin);
 	mem_free(out.pairing_secret.data);
 	mem_free(out.pairing_secret.data);
+	mem_free(out.token_uuid);
 
 	return 0;
 }
@@ -508,7 +562,7 @@ smartcard_cb_generic(int fd, unsigned events, event_io_t *io, void *data)
 	}
 }
 
-int
+static void
 smartcard_cb_change_container_pin(int fd, unsigned events, event_io_t *io, void *data)
 {
 	smartcard_startdata_t *startdata = data;
@@ -521,10 +575,11 @@ smartcard_cb_change_container_pin(int fd, unsigned events, event_io_t *io, void 
 		TokenToDaemon *msg =
 			(TokenToDaemon *)protobuf_recv_message(fd, &token_to_daemon__descriptor);
 		if (!msg) {
-			ERROR("Failed to receive message although EVENT_IO_READ was set. Aborting smartcard generic callback.");
+			ERROR("Failed to receive message although EVENT_IO_READ was set. Aborting smartcard change_pin callback.");
 			event_remove_io(io);
 			event_io_free(io);
-			return -1;
+			control_send_message(CONTROL_RESPONSE_DEVICE_CHANGE_PIN_FAILED, resp_fd);
+			return;
 		}
 		switch (msg->code) {
 		case TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL: {
@@ -535,7 +590,7 @@ smartcard_cb_change_container_pin(int fd, unsigned events, event_io_t *io, void 
 			if (rc != 0) {
 				ERROR("Could not write file %s to flag that container %s's token has been initialized\n \
 						This may leave the system in an inconsistent state!",
-				      path);
+				      path, uuid_string(container_get_uuid(startdata->container)));
 				control_send_message(CONTROL_RESPONSE_DEVICE_CHANGE_PIN_FAILED,
 						     resp_fd);
 			} else {
@@ -550,8 +605,8 @@ smartcard_cb_change_container_pin(int fd, unsigned events, event_io_t *io, void 
 		default:
 			ERROR("TokenToDaemon command %d not expected as answer to change_pin",
 			      msg->code);
-			break;
 		}
+		control_send_message(CONTROL_RESPONSE_DEVICE_CHANGE_PIN_FAILED, resp_fd);
 		protobuf_free_message((ProtobufCMessage *)msg);
 		event_remove_io(io);
 		event_io_free(io);
@@ -602,8 +657,16 @@ smartcard_change_container_pin(smartcard_t *smartcard, control_t *control, conta
 	out.code = is_provisioning ? DAEMON_TO_TOKEN__CODE__PROVISION_PIN :
 				     DAEMON_TO_TOKEN__CODE__CHANGE_PIN;
 
+	/** token uuid are the same as container uuid for now
+	 * TODO: evaluate whether a more advanced token handling than the current
+	 * 		one-on-on mapping is beneficial
+	 */
+	out.token_uuid = mem_strdup(uuid_string(container_get_uuid(startdata->container)));
+
 	out.has_token_type = true;
 	out.token_type = tokentype_to_proto(container_get_token_type(startdata->container));
+	if (out.token_type == TOKEN_TYPE__USB)
+		out.usbtoken_serial = container_get_usbtoken_serial(startdata->container);
 
 	out.token_pin = mem_strdup(passwd);
 	out.token_newpin = mem_strdup(newpasswd);
@@ -616,6 +679,7 @@ smartcard_change_container_pin(smartcard_t *smartcard, control_t *control, conta
 	mem_free(out.token_pin);
 	mem_free(out.token_newpin);
 	mem_free(out.pairing_secret.data);
+	mem_free(out.token_uuid);
 
 	return (ret > 0) ? 0 : -1;
 }

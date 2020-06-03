@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #define LOGF_LOG_MIN_PRIO LOGF_PRIO_TRACE
 #include "common/macro.h"
@@ -60,7 +61,8 @@ struct usbtoken {
 	// int minor;
 	// char *serial;
 
-	int ctn; // card terminal number
+	int ctn;	     // card terminal number
+	unsigned short port; // usb port of token reader
 
 	bool locked;			// whether the token is locked or not
 	unsigned wrong_unlock_attempts; // wrong consecutive password attempts
@@ -265,15 +267,72 @@ produceKey(usbtoken_t *token, unsigned char *label, size_t label_len, unsigned c
 }
 
 /**
+ * returns the port of the desired reader
+ *
+ * @param readers a buffer that contains port numbers and associated reader names
+ *	as returnet from CT_list()
+ * @param lr actual length of @param readers
+ * @param serial the serial number of the usb smartcard reader
+ * @param port the port reader with the given serial or NULL
+ * @return 0 if success
+ */
+int
+token_filter_by_serial(const unsigned char *readers, const unsigned short lr, const char *serial,
+		       unsigned short *port)
+{
+	ASSERT(readers);
+	ASSERT(serial);
+
+	unsigned char *po;
+	unsigned short idx;
+
+	char *s = (char *)mem_memcpy(readers, lr);
+	/* readers: |-|-|---15---|---X---|-|-|
+	 *	 fields  1 2     3       4    5 6
+	 * 		1: uint8_t libusb_get_bus_number()
+	 * 		2: uint8_t libusb_get_device_address
+	 * 		3: string  "SmartCard-HSM ("
+	 * 		4: string  iSerialNumber
+	 * 		5: string  ")"
+	 * 		6: NULL byte to delimit next reader
+	 */
+	po = (unsigned char *)s;
+	idx = 0;
+
+	while (idx < lr) {
+		*port = *po << 8 | *(po + 1);
+		po += 2;
+		idx += 2;
+
+		po += 15; //jump over the static string
+
+		po[lr - 15 - 1 - 1 - 1 - 1] = 0; // get rid of the trailing parenthesis
+
+		size_t s_len = strlen((const char *)po);
+
+		if (strncmp((const char *)po, serial, s_len) == 0) {
+			mem_free(s);
+			return 0;
+		}
+
+		po += 15 + s_len + 1; // jump to next reader
+		idx += 15 + s_len + 1;
+	}
+
+	mem_free(s);
+	return -1;
+}
+
+/**
  * Initializes a usb token
  * TODO: select and init only desired usb token
  */
 usbtoken_t *
-usbtoken_init(void)
+usbtoken_init(const char *serial)
 {
-	unsigned short lr;
+	unsigned short lr, port;
 	int rc;
-	unsigned char readers[4096], *po; /* TODO */
+	unsigned char readers[4096]; /* TODO */
 	usbtoken_t *token = NULL;
 
 	TRACE("USBTOKEN: usbtoken_init");
@@ -287,17 +346,20 @@ usbtoken_init(void)
 	CT_list(readers, &lr, 0);
 
 	if (lr <= 0) {
-		ERROR("No token found.");
+		ERROR("No usb token reader found.");
 		return NULL;
 	}
 
-	po = readers;
-	unsigned short port = *po << 8 | *(po + 1);
-	po += 2;
+	rc = token_filter_by_serial(readers, lr, serial, &port);
+	if (rc != 0) {
+		ERROR("Could not find specified token reader with serial %s", serial);
+		return NULL;
+	}
+	token->port = port;
 
-	DEBUG("USBTOKEN: using token %04x : %s\n", port, po);
+	DEBUG("USBTOKEN:\ntoken serial: %s\ntoken port: 0x%04x", serial, port);
 
-	token->ctn = 0;
+	token->ctn = 0; // TODO: this should probably be a gloabl unique value
 
 	rc = CT_init(token->ctn, port);
 	requestICC(token->ctn);
@@ -366,8 +428,11 @@ provision_auth_code(usbtoken_t *token, const char *tpin, const char *newpass,
 	}
 
 	rc = writeKeyDescription(token->ctn, 1, skd_dskkey, sizeof(skd_dskkey));
+	if (rc < 0) {
+		return rc;
+	}
 
-	return rc;
+	return 0;
 }
 
 static int

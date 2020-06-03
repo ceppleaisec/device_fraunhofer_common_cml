@@ -51,13 +51,6 @@ scd_tokentype_t
 scd_proto_to_tokentype(const DaemonToToken *msg);
 
 /**
- * Returns the directory in which the token files are stored.
- * Currently, only softtokens in the form of .p12 files are supported.
- */
-const char *
-scd_get_token_dir(void);
-
-/**
  * Returns the generic token
  * TODO: needs to be refactored because it may break other code
  *      - in ealier versions this always returned a softtoken_t
@@ -70,12 +63,6 @@ scd_get_token(const DaemonToToken *msg);
  */
 void
 scd_free_token(scd_token_t *token);
-
-/**
- * Returns the token to use for crypto operations.
- */
-softtoken_t *
-scd_get_softtoken(void);
 
 /**
  * Checks provisioning mode

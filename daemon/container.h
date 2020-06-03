@@ -806,4 +806,10 @@ container_uuid_is_c0id(const uuid_t *uuid);
 container_token_type_t
 container_get_token_type(const container_t *container);
 
+/**
+ * Returns the i_serial number of the usb device that is the token reader
+ */
+char *
+container_get_usbtoken_serial(const container_t *container);
+
 #endif /* CONTAINER_H */

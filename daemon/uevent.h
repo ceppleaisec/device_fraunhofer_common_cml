@@ -65,6 +65,9 @@ uevent_usbdev_get_id_product(uevent_usbdev_t *usbdev);
 char *
 uevent_usbdev_get_i_serial(uevent_usbdev_t *usbdev);
 
+uevent_usbdev_type_t
+uevent_usbdev_get_type(uevent_usbdev_t *usbdev);
+
 bool
 uevent_usbdev_is_assigned(uevent_usbdev_t *usbdev);
 

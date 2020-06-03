@@ -2453,3 +2453,33 @@ container_get_token_type(const container_t *container)
 	container_config_free(conf);
 	return ret;
 }
+
+char *
+container_get_usbtoken_serial(const container_t *container)
+{
+	ASSERT(container);
+
+	ERROR("container_get_usbtoken_serial");
+
+	container_token_type_t tt;
+
+	tt = container_get_token_type(container);
+
+	if (tt != CONTAINER_TOKEN_TYPE_USB) {
+		ERROR("The container is not configured to use a usb token");
+		return NULL;
+	}
+
+	if (container->usbdev_list == NULL)
+		ERROR("No usbdev_list in container config");
+
+	for (list_t *l = container->usbdev_list; l; l = l->next) {
+		uevent_usbdev_t *ud = (uevent_usbdev_t *)l->data;
+		if (uevent_usbdev_get_type(ud) == UEVENT_USBDEV_TYPE_TOKEN) {
+			return (uevent_usbdev_get_i_serial(ud));
+		}
+	}
+
+	ERROR("Could not find usbdev with type \"TOKEN\"");
+	return NULL;
+}

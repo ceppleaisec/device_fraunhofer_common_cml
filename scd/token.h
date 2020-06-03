@@ -1,6 +1,6 @@
 /*
  * This file is part of trust|me
- * Copyright(c) 2013 - 2017 Fraunhofer AISEC
+ * Copyright(c) 2013 - 2020 Fraunhofer AISEC
  * Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -51,6 +51,19 @@ typedef struct scd_token_data scd_token_data_t;
 typedef enum scd_tokentype { NONE, DEVICE, USB } scd_tokentype_t;
 
 /**
+ * Data used by the constructor scd_token_new
+ */
+typedef struct token_constr_data {
+	scd_tokentype_t type;
+	char *uuid;
+
+	union {
+		const char *softtoken_dir;
+		const char *usbtoken_serial;
+	} str;
+} token_constr_data_t;
+
+/**
  *  generic scd_token.
  */
 struct scd_token {
@@ -87,7 +100,7 @@ uuid_t *
 scd_token_get_uuid(scd_token_t *token);
 
 scd_token_t *
-scd_token_new(scd_tokentype_t type, const char *name, const char *st_path);
+scd_token_new(token_constr_data_t *constr_data);
 
 void
 scd_token_free(scd_token_t *token);

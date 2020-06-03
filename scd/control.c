@@ -33,7 +33,7 @@
 #include "ssl_util.h"
 #include "scd.h"
 
-#define LOGF_LOG_MIN_PRIO LOGF_PRIO_TRACE
+//#define LOGF_LOG_MIN_PRIO LOGF_PRIO_TRACE
 #include "common/macro.h"
 #include "common/mem.h"
 #include "common/sock.h"
@@ -185,8 +185,6 @@ do_signature:
 static void
 scd_control_handle_message(const DaemonToToken *msg, int fd)
 {
-	TRACE("SCD: Handle messsage");
-
 	if (NULL == msg) {
 		WARN("msg=NULL, returning");
 		return;
@@ -339,10 +337,13 @@ scd_control_handle_message(const DaemonToToken *msg, int fd)
 			int ret = token->change_passphrase(token, msg->token_pin, msg->token_newpin,
 							   msg->pairing_secret.data,
 							   msg->pairing_secret.len, true);
-			if (ret == 0)
+			if (ret == 0) {
+				TRACE("SCD: change_passphrase successful");
 				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_SUCCESSFUL;
-			else
+			} else {
+				TRACE("SCD: change_passphrase failed");
 				out.code = TOKEN_TO_DAEMON__CODE__CHANGE_PIN_FAILED;
+			}
 		}
 
 		protobuf_send_message(fd, (ProtobufCMessage *)&out);

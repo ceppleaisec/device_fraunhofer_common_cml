@@ -30,11 +30,10 @@
 typedef struct usbtoken usbtoken_t;
 
 /**
- * Initializes a usb token
- * TODO: select and init only desired usb token
+ * Initializes a usb token, iff the serial number of the usb token reader matches
  */
 usbtoken_t *
-usbtoken_init(void);
+usbtoken_init(const char *serial);
 
 /**
  * unlocks a usbtoken with a password.
