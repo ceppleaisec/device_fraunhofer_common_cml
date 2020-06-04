@@ -67,6 +67,12 @@
 #define TOKEN_DEFAULT_NAME "testuser"
 #define TOKEN_DEFAULT_EXT ".p12"
 
+#ifdef DEBUG_BUILD
+#define SYSTEM_DEFAULT_REBOOT HALT
+#else
+#define SYSTEM_DEFAULT_REBOOT REBOOT
+#endif
+
 static list_t *scd_token_list = NULL;
 
 static scd_control_t *scd_control_cmld = NULL;
@@ -132,7 +138,7 @@ provisioning_mode()
 	if (!file_exists(DEVICE_CONF)) {
 		ERROR("Going back to bootloader mode, device config does not exist (Proper"
 		      "userdata image needs to be flashed first)");
-		reboot_reboot(REBOOT);
+		reboot_reboot(SYSTEM_DEFAULT_REBOOT);
 	}
 
 	// if available, use tpm to create and store device key
@@ -141,7 +147,7 @@ provisioning_mode()
 		// assumption: tpm2d is launched prior to scd, and creates a keypair on first boot
 		if (!file_exists(TPM2D_ATT_TSS_FILE)) {
 			ERROR("TPM keypair not found, missing %s", TPM2D_ATT_TSS_FILE);
-			reboot_reboot(REBOOT);
+			reboot_reboot(SYSTEM_DEFAULT_REBOOT);
 		}
 		dev_key_file = TPM2D_ATT_TSS_FILE;
 	}
