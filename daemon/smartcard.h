@@ -26,6 +26,7 @@
 
 #include "container.h"
 #include "control.h"
+#include "stdbool.h"
 
 typedef struct smartcard smartcard_t;
 
@@ -35,9 +36,42 @@ typedef struct smartcard smartcard_t;
 smartcard_t *
 smartcard_new(const char *path);
 
+/**
+ * Requests the SCD to initialize a new token.
+ */
+int
+smartcard_scd_token_new(smartcard_t *smartcard, container_t *container);
+
+/**
+ * apparently we cannot queue several requests to the scd to create new tokens with the same callback.
+ * therefore, we use a blocking method
+ */
+int
+smartcard_scd_token_block_new(smartcard_t *smartcard, container_t *container);
+
 int
 smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 				  container_t *container, const char *passwd);
+
+/**
+ * Change the passphrase/pin of the token associated to the container.
+ * The function checks whether the token has previously been provisioned
+ * with a device bound authentication code.
+ * If it has not the function will interprete
+ * @param passwd as the transport pin of the token, generate a new
+ * authentication code from @newpasswd and the pairing_secret and initialize
+ * the token with it.
+ * Else, only the user part of the authentication code is changed.
+ *
+ * @param smartcard smartcard struct representing the connection to the scd
+ * @param control struct which should be used for responses
+ * @param passwd passphrase/pin of the token
+ * @param newpasswd the new passphrase/pin for the token to which will be changed
+ * return -1 on message transmission failure, 0 if message was sent to SCD
+ */
+int
+smartcard_change_container_pin(smartcard_t *smartcard, control_t *control, container_t *container,
+			       const char *passwd, const char *newpasswd);
 
 /**
  * Change the passphrase/pin of the associated device token smartcard
@@ -51,6 +85,13 @@ smartcard_container_start_handler(smartcard_t *smartcard, control_t *control,
 int
 smartcard_change_pin(smartcard_t *smartcard, control_t *control, const char *passwd,
 		     const char *newpasswd);
+
+/**
+ * checks whether the token associated to @param container has been provisioned
+ * with a device bound authentication code yet.
+ */
+bool
+smartcard_container_token_is_provisioned(const container_t *container);
 
 /// *** CRYPTO *** ///
 // FIXME stop the "smartcard" abuse for doing non-smartcard crypto ...

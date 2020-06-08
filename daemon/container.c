@@ -180,6 +180,12 @@ struct container {
 	time_t time_created;
 
 	bool setup_mode;
+
+	uuid_t *scd_token_uuid; // the uuid of the token the container is associated with
+	// indicates whether the scd has succesfull initialized the token structure
+	bool scd_token_is_init;
+	// indicates whether the token has already been provisioned with a platform bound authentication code
+	bool scd_token_is_paired_with_device;
 };
 
 struct container_callback {
@@ -292,6 +298,13 @@ container_new_internal(const uuid_t *uuid, const char *name, container_type_t ty
 		container->config_filename = NULL;
 
 	container->images_dir = mem_strdup(images_dir);
+
+	/* create image_dir already so we can store a pseudo file as a
+	 * marker that the token aossicated with the container has been initialized
+	 */
+	if (mkdir(images_dir, 0755) < 0 && errno != EEXIST) {
+		ERROR_ERRNO("Cound not mkdir container directory %s", images_dir);
+	}
 
 	container->color = color;
 
@@ -440,7 +453,7 @@ container_uuid_is_c0id(const uuid_t *uuid)
 }
 
 /**
- * Creates a new container container object. There are three different cases
+ * Creates a new container object. There are three different cases
  * depending on the combination of the given parameters:
  *
  * uuid && !config: In this case, a container with the given UUID must be already
@@ -624,6 +637,7 @@ container_free(container_t *container)
 	ASSERT(container);
 
 	uuid_free(container->uuid);
+	uuid_free(container->scd_token_uuid);
 	mem_free(container->name);
 
 	for (list_t *l = container->csock_list; l; l = l->next) {
@@ -2429,4 +2443,93 @@ container_get_uid(const container_t *container)
 {
 	ASSERT(container);
 	return c_user_get_uid(container->user);
+}
+
+container_token_type_t
+container_get_token_type(const container_t *container)
+{
+	ASSERT(container);
+
+	container_token_type_t ret;
+	container_config_t *conf = container_config_new(container->config_filename, NULL, 0);
+	ret = container_config_get_token_type(conf);
+	container_config_free(conf);
+	return ret;
+}
+
+char *
+container_get_usbtoken_serial(const container_t *container)
+{
+	ASSERT(container);
+
+	container_token_type_t tt;
+
+	tt = container_get_token_type(container);
+
+	if (tt != CONTAINER_TOKEN_TYPE_USB) {
+		ERROR("The container is not configured to use a usb token");
+		return NULL;
+	}
+
+	if (container->usbdev_list == NULL)
+		ERROR("No usbdev_list in container config");
+
+	for (list_t *l = container->usbdev_list; l; l = l->next) {
+		uevent_usbdev_t *ud = (uevent_usbdev_t *)l->data;
+		if (uevent_usbdev_get_type(ud) == UEVENT_USBDEV_TYPE_TOKEN) {
+			return (uevent_usbdev_get_i_serial(ud));
+		}
+	}
+
+	ERROR("Could not find usbdev with type \"TOKEN\"");
+	return NULL;
+}
+
+void
+container_set_token_uuid(container_t *container, const char *tuuid)
+{
+	ASSERT(container);
+	ASSERT(tuuid);
+
+	container->scd_token_uuid = uuid_new(tuuid);
+}
+
+uuid_t *
+container_get_token_uuid(const container_t *container)
+{
+	ASSERT(container);
+
+	return container->scd_token_uuid;
+}
+
+void
+container_set_token_is_init(container_t *container, const bool is_init)
+{
+	ASSERT(container);
+
+	container->scd_token_is_init = is_init;
+}
+
+bool
+container_get_token_is_init(const container_t *container)
+{
+	ASSERT(container);
+
+	return container->scd_token_is_init;
+}
+
+void
+container_set_token_is_linked_to_device(container_t *container, const bool is_paired)
+{
+	ASSERT(container);
+
+	container->scd_token_is_paired_with_device = is_paired;
+}
+
+bool
+container_get_token_is_linked_to_device(const container_t *container)
+{
+	ASSERT(container);
+
+	return container->scd_token_is_paired_with_device;
 }
